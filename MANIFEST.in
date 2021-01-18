@@ -1,0 +1,2 @@
+include versioneer.py
+include grb_shader/_version.py
