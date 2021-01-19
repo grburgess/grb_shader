@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Type, Union
 
 import astropy.units as u
+import ipyvolume as ipv
+import pythreejs
+import ipywidgets as widgets
+import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 
@@ -19,7 +23,7 @@ class Galaxy(object):
     def contains_point(self, ra: float, dec: float) -> bool:
         """
         does this galaxy contain this point?
-        
+
         NOTE: This is currently dumb as it assumes the galaxy is a
         disk!
 
@@ -45,7 +49,7 @@ class LocalVolume(object):
     galaxies: Dict[str, Galaxy]
 
     @classmethod
-    def from_file(cls, file_name) -> "LocalVolume":
+    def from_lv_catalog(cls) -> "LocalVolume":
         """
         Construct a LocalVolume from the LV catalog
         """
@@ -65,7 +69,7 @@ class LocalVolume(object):
 
             row = rrow[1]
 
-            sk = parse_skycoord(row["skycoord"])
+            sk = parse_skycoord(row["skycoord"], row["distance"])
 
             galaxy = Galaxy(name=row["name"],
                             distance=row["distance"],
@@ -107,13 +111,62 @@ class LocalVolume(object):
         else:
             return super().__getattr__(name)
 
+    def display(self):
 
-def parse_skycoord(x: str) -> SkyCoord:
+        fig = ipv.figure()
+
+        ipv.pylab.style.box_off()
+        ipv.pylab.style.axes_off()
+        ipv.pylab.style.set_style_dark()
+        #ipv.pylab.style.background_color(background_color)
+
+        
+        xs = []
+        ys = []
+        zs = []
+
+        for k, v in self.galaxies.items():
+
+            xyz = v.center.cartesian.xyz.to("Mpc").value
+
+            xs.append(xyz[0])
+            ys.append(xyz[1])
+            zs.append(xyz[2])
+
+        ipv.scatter(np.array(xs),
+                    np.array(ys),
+                    np.array(zs),
+                    marker="sphere",
+                    size = .5,
+                    color="white"
+
+
+                    )
+
+        fig.camera.up = [1, 0, 0]
+        control = pythreejs.OrbitControls(controlling=fig.camera)
+        fig.controls = control
+        control.autoRotate = True
+        fig.render_continuous = True
+        control.autoRotate = True
+        toggle_rotate = widgets.ToggleButton(description="Rotate")
+        widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
+        r_value = toggle_rotate
+
+        
+
+        
+        ipv.show()
+
+        return r_value
+
+
+def parse_skycoord(x: str, distance: float) -> SkyCoord:
     """
     parse the archaic sailor version of 
     coordinate into an astropy SkyCoord
     """
-    
+
     sign = "+" if ("+" in x) else "-"
 
     ra, dec = x.split(sign)
@@ -121,7 +174,7 @@ def parse_skycoord(x: str) -> SkyCoord:
     ra_string = f"{ra[:2]}h{ra[2:4]}min{ra[4:]}s"
     dec_str = f"{sign}{dec[:2]}.{dec[2:]}"
 
-    sk = SkyCoord(f"{ra_string} {dec_str}", frame="icrs",
+    sk = SkyCoord(f"{ra_string} {dec_str}", distance=distance*u.Mpc, frame="icrs",
                   unit=(u.hourangle, u.deg))
 
     return sk
