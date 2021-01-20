@@ -1,9 +1,9 @@
-seed: 83645
+seed: 81234897
 generator:
     flavor: pareto_sfr
 
     parameters:
-        r0: 10
+        r0: 200
         rise: 1.
         decay: 4.0
         peak: 1.

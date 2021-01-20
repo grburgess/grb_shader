@@ -1,3 +1,7 @@
+        from matplotlib import pyplot as plt
+        from matplotlib.patches import Ellipse
+
+
 from typing import List, Optional, Union
 
 import numpy as np
@@ -81,8 +85,6 @@ class CatalogSelector(SpatialSelection):
 
     def show_selected_galaxies(self):
 
-        from matplotlib import pyplot as plt
-        from matplotlib.patches import Ellipse
 
         ax = plt.subplot(projection="hammer")
 
