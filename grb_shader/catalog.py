@@ -95,6 +95,19 @@ class LocalVolume(object):
 
         return cls(output)
 
+    def sample_angles(self, seed=0):
+        """
+        Sample random orientations for galaxies.
+        """
+
+        np.random.seed(seed)
+
+        # output = {}
+
+        for name, galaxy in self.galaxies.items():
+
+            galaxy.angle = np.random.uniform(0, 360)
+
     def intercepts_galaxy(
         self, ra: float, dec: float
     ) -> Tuple[bool, Union[Galaxy, None]]:
