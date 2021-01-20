@@ -95,14 +95,13 @@ class LocalVolume(object):
 
         return cls(output)
 
-    def sample_angles(self, seed=0):
+    def sample_angles(self, seed=None):
         """
         Sample random orientations for galaxies.
         """
 
-        np.random.seed(seed)
-
-        # output = {}
+        if seed:
+            np.random.seed(seed)
 
         for name, galaxy in self.galaxies.items():
 

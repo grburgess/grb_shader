@@ -51,6 +51,9 @@ class CatalogSelector(SpatialSelection):
 
     def draw(self, size) -> None:
 
+        # Sample random angles (optional to pass seed)
+        self._catalog.sample_angles()
+
         # loop through the sky positions
 
         self._selection = np.zeros(size, dtype=bool)
