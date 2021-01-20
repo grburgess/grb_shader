@@ -81,15 +81,15 @@ class CatalogSelector(SpatialSelection):
 
     def show_selected_galaxies(self):
 
+        import ligo.skymap.plot
         from matplotlib import pyplot as plt
         from matplotlib.patches import Ellipse
 
-        ax = plt.subplot(projection="hammer")
+        fig, ax = plt.subplots(subplot_kw={"projection": "astro degrees mollweide"})
+        fig.set_size_inches((7, 5))
 
-        ax.figure.set_size_inches((7, 5))
-
-        selected_ra = np.deg2rad(self._spatial_distribution.ra[self._selection])
-        selected_dec = np.deg2rad(self._spatial_distribution.dec[self._selection])
+        selected_ra = self._spatial_distribution.ra[self._selection]
+        selected_dec = self._spatial_distribution.dec[self._selection]
 
         colors = plt.cm.viridis(np.linspace(0, 1, len(self._selected_galaxies)))
 
@@ -100,11 +100,11 @@ class CatalogSelector(SpatialSelection):
             colors,
         ):
 
-            a = np.deg2rad(galaxy.radius * (1 / 60))
+            a = galaxy.radius * (1 / 60)
             b = a * galaxy.ratio
 
             ellipse = Ellipse(
-                (np.pi - galaxy.center.ra.rad, galaxy.center.dec.rad),
+                (galaxy.center.ra.deg, galaxy.center.dec.deg),
                 a,
                 b,
                 galaxy.angle,
@@ -112,10 +112,49 @@ class CatalogSelector(SpatialSelection):
                 color=color,
                 label=galaxy.name,
             )
-            ax.add_patch(ellipse)
-            ax.scatter(np.pi - ra, dec, color="k", edgecolor="k", s=10)
+            e = ax.add_patch(ellipse)
+            e.set_transform(ax.get_transform("icrs"))
+            ax.scatter(
+                ra,
+                dec,
+                transform=ax.get_transform("icrs"),
+                color="k",
+                edgecolor="k",
+                s=10,
+            )
 
         ax.legend()
-        ax.get_xaxis().set_visible(False)
 
-        return ax
+        return fig, ax
+
+    def show_all_galaxies(self):
+
+        import ligo.skymap.plot
+        from matplotlib import pyplot as plt
+        from matplotlib.patches import Ellipse
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "astro degrees mollweide"})
+        fig.set_size_inches((7, 5))
+
+        ra = self._spatial_distribution.ra
+        dec = self._spatial_distribution.dec
+
+        for _, galaxy in self._catalog.galaxies.items():
+
+            a = galaxy.radius * (1 / 60)
+            b = a * galaxy.ratio
+
+            ellipse = Ellipse(
+                (galaxy.center.ra.deg, galaxy.center.dec.deg),
+                a,
+                b,
+                galaxy.angle,
+                alpha=0.5,
+                label=galaxy.name,
+            )
+            e = ax.add_patch(ellipse)
+            e.set_transform(ax.get_transform("icrs"))
+
+        ax.scatter(
+            ra, dec, s=10, color="k", edgecolor="k", transform=ax.get_transform("icrs")
+        )
