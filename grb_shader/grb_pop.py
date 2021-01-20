@@ -1,142 +1,138 @@
+from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Union
 
-from tqdm.auto import tqdm
 import numpy as np
 import popsynth as ps
+import yaml
 from popsynth.selection_probability import SpatialSelection, UnitySelection
+from tqdm.auto import tqdm
 
-from .catalog import Galaxy, LocalVolume
+from .samplers import CatalogSelector
 
+_base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation)
+_temporal_lookup = dict(constant=ConstantProfile,
+                        pulse=PulseProfile
 
-class TDecaySampler(ps.AuxiliarySampler):
-    def __init__(self):
-        """
-        samples the decay of the of the pulse
-        """
-
-        super(TDecaySampler, self).__init__(
-            name="tdecay", observed=False)
-
-    def true_sampler(self, size):
-
-        t90 = 10 ** self._secondary_samplers["log_t90"].true_values
-        trise = self._secondary_samplers["trise"].true_values
-
-        self._true_values = (
-            1.0 / 50.0 * (10 * t90 + trise + np.sqrt(trise)
-                          * np.sqrt(20 * t90 + trise))
-        )
-
-
-class DurationSampler(ps.AuxiliarySampler):
-    def __init__(self):
-        "samples how long the pulse last"
-
-        super(DurationSampler, self).__init__(
-            name="duration", observed=False
-        )
-
-    def true_sampler(self, size):
-
-        t90 = 10 ** self._secondary_samplers["log_t90"].true_values
-
-        self._true_values = 1.5 * t90
-
-
-class CatalogSelector(SpatialSelection):
-
-    def __init__(self) -> None:
-
-        super(CatalogSelector, self).__init__(name="catalog_selector")
-
-        self._catalog = LocalVolume.from_lv_catalog()
-        self._selected_galaxies: List[Galaxy] = []
-
-    def draw(self, size) -> None:
-
-        # loop through the sky positions
-
-        self._selection = np.zeros(size, dtype=bool)
-
-        pbar = tqdm(total=size, desc="Scanning catalog")
-
-        
-        for i, (ra, dec), in enumerate(zip(self._spatial_distribution.ra, self._spatial_distribution.dec)):
-
-            test, galaxy = self._catalog.intercepts_galaxy(ra, dec)
-
-            if test:
-
-                self._selection[i] = True
-
-                self._selected_galaxies.append(galaxy)
-
-            pbar.update(1)
-                
-    @property
-    def selected_galaxies(self) -> List[Galaxy]:
-
-        return self._selected_galaxies
+                        )
 
 
 class GRBPop(object):
 
-    def __init__(self):
+    def __init__(self, base_population: ps.PopulationSynth, observed_quantities: List[ps.AuxiliarySampler]):
 
-        r0_true = 5
-        rise_true = 1.
-        decay_true = 4.0
-        peak_true = 1.5
+        self._population: ps.Population = None
 
-        # the luminosity
-        Lmin_true = 1e51
-        alpha_true = 1.5
-        r_max = 7.0
+        self._population_gen: ps.PopulationSynth = base_population
 
-        pop_gen = ps.populations.ParetoSFRPopulation(
-            r0=r0_true,
-            rise=rise_true,
-            decay=decay_true,
-            peak=peak_true,
-            Lmin=Lmin_true,
-            alpha=alpha_true,
-            r_max=r_max,
-        )
+        # add the observed qauntities
 
-        trise = ps.aux_samplers.TruncatedNormalAuxSampler(name="trise", observed=False
-                                                          )
+        for o in observed_quantities:
 
-        trise.lower = 0.01
-        trise.upper = 5.0
-        trise.mu = 1
-        trise.tau = 1.0
+            self._population_gen.add_observed_quantity(o)
 
-        t90 = ps.aux_samplers.LogNormalAuxSampler(
-            name="log_t90", observed=False)
+        # We are not going to select on flux
+        # because cosmo GRB will do that for us
 
-        t90.mu = 10
-        t90.tau = 0.25
+        flux_selector = UnitySelection()
+
+        self._population_gen.set_flux_selection(flux_selector)
+
+        # build the catalog selections
+
+        self._catalog_selector: CatalogSelector = CatalogSelector()
+
+        self._population_gen.add_spatial_selector(self._catalog_selector)
+
+    def engage(self) -> None:
+
+        self._population = self._population_gen.draw_survey(
+            no_selection=False, boundary=1e-2)
+
+    @property
+    def population(self) -> ps.Population:
+        return self._population
+
+    @property
+    def population_generator(self) -> ps.PopulationSynth:
+        return self._population_gen
+
+    @property
+    def catalog_selector(self) -> CatalogSelector:
+        return self._catalog_selector
+
+    @classmethod:
+    def from_yaml(cls, file_name) -> "GRBPop":
+
+        file_name: Path = Path(file_name)
+
+        with file_name.open("r") as f:
+
+            inputs: Dict = yaml.load(stream=f, Loader=yaml.SafeLoader)
+
+        base_gen = _base_gen_look_up[inputs["generator"]["flavor"]](
+            **inputs["generator"]["parameters"])
 
         ep = ps.aux_samplers.LogNormalAuxSampler(name="log_ep", observed=False)
 
-        ep.mu = 300.0
-        ep.tau = 0.5
+        # set the ep
+
+        ep.mu = inputs["spectral"]["ep"]["mu"]
+        ep.tau = inputs["spectral"]["ep"]["tau"]
+
+        # set the alpha
 
         alpha = ps.aux_samplers.TruncatedNormalAuxSampler(
             name="alpha", observed=False)
 
         alpha.lower = -1.5
         alpha.upper = 0.1
-        alpha.mu = -1
-        alpha.tau = 0.25
+        alpha.mu = inputs["spectral"]["alpha"]["mu"]
+        alpha.tau = inputs["spectral"]["alpha"]["tau"]
 
-        tau = ps.aux_samplers.TruncatedNormalAuxSampler(
-            name="tau", observed=False)
+        temporal_profile = _temporal_look_up[inputs["temporal profile"]["flavor"]](
+            **inputs["temporal profile"]["parameters"])
 
-        tau.lower = 1.5
-        tau.upper = 2.5
-        tau.mu = 2
-        tau.tau = 0.25
+        observed_quantities = [ep, alpha]
+        observed_quantities.extend(temporal_profile.quantities)
+
+        return cls(base_gen, observed_quantities)
+
+
+class TemporalProfile(object):
+
+    def __init__(self, **params) -> None:
+
+        self._qauntites: List = None
+
+        self._construct(**params)
+
+    def _construct(self):
+
+        pass
+
+    @property
+    def quantities(self) -> List:
+        return self._quantities
+
+
+class PulseProfile(TemporalProfile):
+
+    def _construct(self, t90_mu, t90_tau, t_rise_mu, t_rise_tau):
+
+        trise = ps.aux_samplers.TruncatedNormalAuxSampler(name="trise", observed=False
+                                                          )
+
+        trise.lower = 0.01
+        trise.upper = 5.0
+        trise.mu = t_rise_mu
+        trise.tau = t_rise_tau
+
+        t90 = ps.aux_samplers.LogNormalAuxSampler(
+            name="log_t90", observed=False)
+
+        t90.mu = t90_mu
+        t90.tau = t90_tau
 
         tdecay = TDecaySampler()
         duration = DurationSampler()
@@ -145,22 +141,28 @@ class GRBPop(object):
 
         duration.set_secondary_sampler(t90)
 
-        pop_gen.add_observed_quantity(ep)
-        pop_gen.add_observed_quantity(tau)
-        pop_gen.add_observed_quantity(alpha)
-        pop_gen.add_observed_quantity(tdecay)
-        pop_gen.add_observed_quantity(duration)
+        tau = ps.aux_samplers.TruncatedNormalAuxSampler(
+            name="tau", observed=False)
 
-        flux_selector = UnitySelection()
+        tau.lower = 1.5
+        tau.upper = 2.5
+        tau.mu = 2
 
-        pop_gen.set_flux_selection(flux_selector)
+        self._qauntites = [duration, tdecay]
 
-        catalog_selector = CatalogSelector()
 
-        pop_gen.add_spatial_selector(catalog_selector)
+class ContantProfile(TemporalProfile):
 
-        pop = pop_gen.draw_survey(no_selection=False, boundary=1e-2)
+    def _construct(self, log_t90_mu, lof_t90_tau):
 
-        self.pop = pop
+        t90 = ps.aux_samplers.Log10NormalAuxSampler(
+            name="t90", observed=False)
 
-        self.pop_gen = pop_gen
+        t90.mu = log_t90_mu
+        t90.tau = log_t90_tau
+
+        duration = DurationSampler()
+
+        duration.set_secondary_sampler(t90)
+
+        self._qauntites = [duration]

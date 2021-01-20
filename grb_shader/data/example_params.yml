@@ -1,0 +1,28 @@
+generator:
+    flavor: pareto_sfr
+
+    parameters:
+        r0: 3
+        rise: 1.
+        decay: 4.0
+        peak: 1.5
+
+spectral:
+  ep:
+    mu: 300
+    tau: 0.5
+
+  alpha:
+    mu: -1
+    tau: 0.25
+
+# specfiy the temporal structure
+    
+temporal profile:
+  flavor: constant
+
+  parameters:
+    log_t90_mu: -1
+    log_t90_tau: 1
+  
+  
