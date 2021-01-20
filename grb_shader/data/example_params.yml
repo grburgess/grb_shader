@@ -3,13 +3,13 @@ generator:
     flavor: pareto_sfr
 
     parameters:
-        r0: 3
+        r0: 10
         rise: 1.
         decay: 4.0
-        peak: 1.5
+        peak: 1.
         Lmin: 1.e+47
         alpha: 1.5
-          
+        r_max: 3
 
 spectral:
   ep:

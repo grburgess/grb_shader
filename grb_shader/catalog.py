@@ -10,7 +10,7 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 
 from grb_shader.utils.package_data import get_path_of_data_file
-
+from grb_shader.utils.disk import Sphere
 
 @dataclass
 class Galaxy(object):
@@ -44,6 +44,8 @@ class Galaxy(object):
             return False
 
 
+_exclude = ["LMC", "SMC", ]
+        
 @dataclass
 class LocalVolume(object):
     galaxies: Dict[str, Galaxy]
@@ -71,13 +73,15 @@ class LocalVolume(object):
 
             sk = parse_skycoord(row["skycoord"], row["distance"])
 
-            galaxy = Galaxy(name=row["name"],
-                            distance=row["distance"],
-                            center=sk,
-                            radius=row["radius"],
-                            ratio=row["ratio"])
+            if (not np.isnan(row["radius"])) and (row["name"] not in _exclude):
+            
+                galaxy = Galaxy(name=row["name"],
+                                distance=row["distance"],
+                                center=sk,
+                                radius=row["radius"],
+                                ratio=row["ratio"])
 
-            output[row["name"]] = galaxy
+                output[row["name"]] = galaxy
 
         return cls(output)
 
@@ -127,11 +131,15 @@ class LocalVolume(object):
 
         for k, v in self.galaxies.items():
 
-            xyz = v.center.cartesian.xyz.to("Mpc").value
+            x, y, z = v.center.cartesian.xyz.to("Mpc").value
 
-            xs.append(xyz[0])
-            ys.append(xyz[1])
-            zs.append(xyz[2])
+            # sphere = Sphere(x,y,z, radius=v.radius/1000.,  color="white")
+            # sphere.plot()
+
+            
+            xs.append(x)
+            ys.append(y)
+            zs.append(z)
 
         ipv.scatter(np.array(xs),
                     np.array(ys),
@@ -155,6 +163,7 @@ class LocalVolume(object):
 
         
 
+        ipv.xyzlim(12)
         
         ipv.show()
 
