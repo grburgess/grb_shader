@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import popsynth as ps
@@ -8,13 +8,7 @@ import yaml
 from popsynth.selection_probability import SpatialSelection, UnitySelection
 from tqdm.auto import tqdm
 
-from .samplers import CatalogSelector
-
-_base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation)
-_temporal_lookup = dict(constant=ConstantProfile,
-                        pulse=PulseProfile
-
-                        )
+from .samplers import CatalogSelector, DurationSampler
 
 
 class GRBPop(object):
@@ -61,23 +55,31 @@ class GRBPop(object):
     def catalog_selector(self) -> CatalogSelector:
         return self._catalog_selector
 
-    @classmethod:
+    @classmethod
     def from_yaml(cls, file_name) -> "GRBPop":
 
-        file_name: Path = Path(file_name)
+        p: Path = Path(file_name)
 
-        with file_name.open("r") as f:
+        with p.open("r") as f:
 
             inputs: Dict = yaml.load(stream=f, Loader=yaml.SafeLoader)
 
-        base_gen = _base_gen_look_up[inputs["generator"]["flavor"]](
-            **inputs["generator"]["parameters"])
+        return cls.from_dict(inputs)
 
-        ep = ps.aux_samplers.LogNormalAuxSampler(name="log_ep", observed=False)
+    @classmethod
+    def from_dict(cls, inputs: Dict) -> "GRBPop":
+
+        seed = inputs["seed"]
+
+        base_gen = _base_gen_lookup[inputs["generator"]["flavor"]](seed=seed,
+                                                                   **inputs["generator"]["parameters"])
+
+        ep = ps.aux_samplers.Log10NormalAuxSampler(
+            name="log_ep", observed=False)
 
         # set the ep
 
-        ep.mu = inputs["spectral"]["ep"]["mu"]
+        ep.mu = np.log10(inputs["spectral"]["ep"]["mu"])
         ep.tau = inputs["spectral"]["ep"]["tau"]
 
         # set the alpha
@@ -90,7 +92,7 @@ class GRBPop(object):
         alpha.mu = inputs["spectral"]["alpha"]["mu"]
         alpha.tau = inputs["spectral"]["alpha"]["tau"]
 
-        temporal_profile = _temporal_look_up[inputs["temporal profile"]["flavor"]](
+        temporal_profile = _temporal_lookup[inputs["temporal profile"]["flavor"]](
             **inputs["temporal profile"]["parameters"])
 
         observed_quantities = [ep, alpha]
@@ -148,12 +150,12 @@ class PulseProfile(TemporalProfile):
         tau.upper = 2.5
         tau.mu = 2
 
-        self._qauntites = [duration, tdecay]
+        self._quantities = [duration, tdecay]
 
 
-class ContantProfile(TemporalProfile):
+class ConstantProfile(TemporalProfile):
 
-    def _construct(self, log_t90_mu, lof_t90_tau):
+    def _construct(self, log_t90_mu, log_t90_tau):
 
         t90 = ps.aux_samplers.Log10NormalAuxSampler(
             name="t90", observed=False)
@@ -165,4 +167,11 @@ class ContantProfile(TemporalProfile):
 
         duration.set_secondary_sampler(t90)
 
-        self._qauntites = [duration]
+        self._quantities = [duration]
+
+
+_base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation)
+_temporal_lookup = dict(constant=ConstantProfile,
+                        pulse=PulseProfile
+
+                        )
