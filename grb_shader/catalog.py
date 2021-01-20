@@ -19,23 +19,37 @@ class Galaxy(object):
     center: SkyCoord
     radius: float
     ratio: float
+    angle: float = 0
 
     def contains_point(self, ra: float, dec: float) -> bool:
         """
         does this galaxy contain this point?
 
-        NOTE: This is currently dumb as it assumes the galaxy is a
-        disk!
-
+        Assumes galaxy is an ellipse with object's properties.
 
         :param ra:
         :param dec:
         """
-        point = SkyCoord(ra, dec, unit="deg", frame="icrs")
 
-        sep = self.center.separation(point)
+        a = self.radius * (1 / 60)  # deg
 
-        if sep.arcminute < self.radius:
+        b = a * self.ratio  # deg
+
+        cos_angle = np.cos(np.pi - np.deg2rad(self.angle))
+        sin_angle = np.sin(np.pi - np.deg2rad(self.angle))
+
+        # Get xy dist from point to center
+        x = ra - self.center.ra.deg
+        y = dec - self.center.dec.deg
+
+        # Transform to along major/minor axes
+        x_t = x * cos_angle - y * sin_angle
+        y_t = x * sin_angle + y * cos_angle
+
+        # Get normalised distance of point to center
+        r_norm = x_t ** 2 / (a / 2) ** 2 + y_t ** 2 / (b / 2) ** 2
+
+        if r_norm <= 1:
 
             return True
 
@@ -55,15 +69,13 @@ class LocalVolume(object):
         """
         output = {}
 
-        table = pd.read_csv(get_path_of_data_file("lv_catalog.txt"),
-                            delim_whitespace=True,
-                            header=None,
-                            na_values=-99.99,
-                            names=["name",
-                                   "skycoord",
-                                   "radius",
-                                   "ratio",
-                                   "distance"])
+        table = pd.read_csv(
+            get_path_of_data_file("lv_catalog.txt"),
+            delim_whitespace=True,
+            header=None,
+            na_values=-99.99,
+            names=["name", "skycoord", "radius", "ratio", "distance"],
+        )
 
         for rrow in table.iterrows():
 
@@ -71,19 +83,35 @@ class LocalVolume(object):
 
             sk = parse_skycoord(row["skycoord"], row["distance"])
 
-            galaxy = Galaxy(name=row["name"],
-                            distance=row["distance"],
-                            center=sk,
-                            radius=row["radius"],
-                            ratio=row["ratio"])
+            galaxy = Galaxy(
+                name=row["name"],
+                distance=row["distance"],
+                center=sk,
+                radius=row["radius"],
+                ratio=row["ratio"],
+            )
 
             output[row["name"]] = galaxy
 
         return cls(output)
 
-    def intercepts_galaxy(self, ra: float, dec: float) -> Tuple[bool, Union[Galaxy, None]]:
+    def sample_angles(self, seed=None):
         """
-        Test if the sky point intecepts a galaxy in the local volume 
+        Sample random orientations for galaxies.
+        """
+
+        if seed:
+            np.random.seed(seed)
+
+        for name, galaxy in self.galaxies.items():
+
+            galaxy.angle = np.random.uniform(0, 360)
+
+    def intercepts_galaxy(
+        self, ra: float, dec: float
+    ) -> Tuple[bool, Union[Galaxy, None]]:
+        """
+        Test if the sky point intecepts a galaxy in the local volume
         and if so return that galaxy
         """
 
@@ -118,9 +146,8 @@ class LocalVolume(object):
         ipv.pylab.style.box_off()
         ipv.pylab.style.axes_off()
         ipv.pylab.style.set_style_dark()
-        #ipv.pylab.style.background_color(background_color)
+        # ipv.pylab.style.background_color(background_color)
 
-        
         xs = []
         ys = []
         zs = []
@@ -133,15 +160,14 @@ class LocalVolume(object):
             ys.append(xyz[1])
             zs.append(xyz[2])
 
-        ipv.scatter(np.array(xs),
-                    np.array(ys),
-                    np.array(zs),
-                    marker="sphere",
-                    size = .5,
-                    color="white"
-
-
-                    )
+        ipv.scatter(
+            np.array(xs),
+            np.array(ys),
+            np.array(zs),
+            marker="sphere",
+            size=0.5,
+            color="white",
+        )
 
         fig.camera.up = [1, 0, 0]
         control = pythreejs.OrbitControls(controlling=fig.camera)
@@ -153,9 +179,6 @@ class LocalVolume(object):
         widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
         r_value = toggle_rotate
 
-        
-
-        
         ipv.show()
 
         return r_value
@@ -163,7 +186,7 @@ class LocalVolume(object):
 
 def parse_skycoord(x: str, distance: float) -> SkyCoord:
     """
-    parse the archaic sailor version of 
+    parse the archaic sailor version of
     coordinate into an astropy SkyCoord
     """
 
@@ -174,8 +197,12 @@ def parse_skycoord(x: str, distance: float) -> SkyCoord:
     ra_string = f"{ra[:2]}h{ra[2:4]}min{ra[4:]}s"
     dec_str = f"{sign}{dec[:2]}.{dec[2:]}"
 
-    sk = SkyCoord(f"{ra_string} {dec_str}", distance=distance*u.Mpc, frame="icrs",
-                  unit=(u.hourangle, u.deg))
+    sk = SkyCoord(
+        f"{ra_string} {dec_str}",
+        distance=distance * u.Mpc,
+        frame="icrs",
+        unit=(u.hourangle, u.deg),
+    )
 
     return sk
 
