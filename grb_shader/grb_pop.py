@@ -5,8 +5,8 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import popsynth as ps
 import yaml
-from popsynth.selection_probability import SpatialSelection, UnitySelection
-from tqdm.auto import tqdm
+from joblib import wrap_non_picklable_objects
+from popsynth.selection_probability import UnitySelection
 
 from .samplers import CatalogSelector, DurationSampler
 
@@ -37,6 +37,12 @@ class GRBPop(object):
         self._catalog_selector: CatalogSelector = CatalogSelector()
 
         self._population_gen.add_spatial_selector(self._catalog_selector)
+
+        # angle_sampler = AngleSampler()
+
+        # angle_sampler.set_angles(self._catalog_selector.catalog.angles)
+
+        # self._population_gen.add_observed_quantity(angle_sampler)
 
     def engage(self) -> None:
 
@@ -170,7 +176,10 @@ class ConstantProfile(TemporalProfile):
         self._quantities = [duration]
 
 
-_base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation)
+_base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation,
+                        bpl_sfr=ps.populations.BPLSFRPopulation
+                        )
+
 _temporal_lookup = dict(constant=ConstantProfile,
                         pulse=PulseProfile
 

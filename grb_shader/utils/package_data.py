@@ -7,6 +7,12 @@ def get_path_of_data_file(data_file) -> Path:
     return Path(file_path)
 
 
+def get_ghirlanda_model() -> Path:
+
+    return get_path_of_data_file("ghirlanda2016.yml")
+    
+
+
 # def get_path_to_template_analysis():
 
 #     return get_path_of_data_file("template.md")

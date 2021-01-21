@@ -1,13 +1,11 @@
 from typing import List, Optional, Union
 
 import ligo.skymap.plot
-import numba as nb
 import numpy as np
 import popsynth as ps
 from matplotlib import pyplot as plt
 from matplotlib.patches import Ellipse
-from popsynth.selection_probability import SpatialSelection, UnitySelection
-from tqdm.auto import tqdm
+from popsynth.selection_probability import SpatialSelection
 
 from .catalog import Galaxy, LocalVolume
 
@@ -56,13 +54,17 @@ class CatalogSelector(SpatialSelection):
 
         self._selected_galaxies: List[Galaxy] = []
 
+    @property
+    def catalog(self):
+        return self._catalog
+
     def draw(self, size) -> None:
 
         # loop through the sky positions
 
         self._selection = np.zeros(size, dtype=bool)
 
-        pbar = tqdm(total=size, desc="Scanning catalog")
+#        pbar = tqdm(total=size, desc="Scanning catalog")
 
         for i, (ra, dec), in enumerate(
             zip(self._spatial_distribution.ra, self._spatial_distribution.dec)
@@ -70,7 +72,6 @@ class CatalogSelector(SpatialSelection):
 
             flag, galaxy = self._catalog.intercepts_galaxy_numba(ra, dec)
             #flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
-            
 
             if flag:
 
@@ -78,7 +79,7 @@ class CatalogSelector(SpatialSelection):
 
                 self._selected_galaxies.append(galaxy)
 
-            pbar.update(1)
+ #           pbar.update(1)
 
     @property
     def selected_galaxies(self) -> List[Galaxy]:
@@ -104,12 +105,12 @@ class CatalogSelector(SpatialSelection):
         _plotted_galaxies = []
 
         i = 0
-        
+
         for ra, dec, galaxy in zip(
             selected_ra,
             selected_dec,
             self._selected_galaxies,
-           
+
         ):
             if galaxy.name not in _plotted_galaxies:
 
@@ -125,12 +126,12 @@ class CatalogSelector(SpatialSelection):
                     color=colors[i],
                     label=galaxy.name,
                     transform=ax.get_transform("icrs")
-                    
+
                 )
                 e = ax.add_patch(ellipse)
-                #e.set_transform(ax.get_transform("icrs"))
+                # e.set_transform(ax.get_transform("icrs"))
 
-                i+=1
+                i += 1
 
                 _plotted_galaxies.append(galaxy.name)
 
@@ -146,31 +147,6 @@ class CatalogSelector(SpatialSelection):
         ax.legend()
 
         return fig, ax
-
-    def show_all_galaxies(self, frame="icrs"):
-
-        fig, ax = plt.subplots(
-            subplot_kw={"projection": "astro degrees mollweide"})
-        fig.set_size_inches((7, 5))
-
-        ra = self._spatial_distribution.ra
-        dec = self._spatial_distribution.dec
-
-        for _, galaxy in self._catalog.galaxies.items():
-
-            a = galaxy.radius * (1 / 60)
-            b = a * galaxy.ratio
-
-            ellipse = Ellipse(
-                (galaxy.center.ra.deg, galaxy.center.dec.deg),
-                a,
-                b,
-                galaxy.angle,
-                alpha=0.5,
-                label=galaxy.name,
-            )
-            e = ax.add_patch(ellipse)
-            e.set_transform(ax.get_transform(frame))
 
         # ax.scatter(
         #     ra, dec, s=10, color="k", edgecolor="k", transform=ax.get_transform("icrs")

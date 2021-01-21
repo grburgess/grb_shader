@@ -1,6 +1,6 @@
 seed: 3645
 generator:
-#    flavor: pareto_sfr
+
     flavor: bpl_sfr
 
     parameters:

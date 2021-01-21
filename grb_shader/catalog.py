@@ -10,8 +10,10 @@ import numpy as np
 import pandas as pd
 import pythreejs
 from astropy.coordinates import SkyCoord
+from matplotlib import pyplot as plt
+from matplotlib.patches import Ellipse
+from popsynth import Population
 
-from grb_shader.utils.disk import Sphere
 from grb_shader.utils.package_data import get_path_of_data_file
 
 
@@ -20,16 +22,15 @@ class Galaxy(object):
     name: str
     distance: float
     center: SkyCoord
-    radius: float
+    diameter: float
     ratio: float
     angle: float = 0
 
-
     def __post_init__(self):
-           
+
         # Some useful ellipse properties
 
-        self.a = self.radius / 60  # deg
+        self.a = self.diameter / 60  # deg
 
         self.b = self.a * self.ratio  # deg
 
@@ -44,7 +45,6 @@ class Galaxy(object):
         :param ra:
         :param dec:
         """
-
 
         cos_angle = np.cos(np.pi - np.deg2rad(self.angle))
         sin_angle = np.sin(np.pi - np.deg2rad(self.angle))
@@ -68,8 +68,7 @@ class Galaxy(object):
 
             return False
 
-
-        # a = self.radius * (1 / 60)  # deg
+        # a = self.diameter * (1 / 60)  # deg
 
         # return _contains_point(ra,
         #                        dec,
@@ -88,6 +87,7 @@ _exclude = ["LMC", "SMC", ]
 @dataclass
 class LocalVolume(object):
     galaxies: Dict[str, Galaxy]
+    _population: Optional[Population] = None
 
     @classmethod
     def from_lv_catalog(cls) -> "LocalVolume":
@@ -101,7 +101,7 @@ class LocalVolume(object):
             delim_whitespace=True,
             header=None,
             na_values=-99.99,
-            names=["name", "skycoord", "radius", "ratio", "distance"],
+            names=["name", "skycoord", "diameter", "ratio", "distance"],
         )
 
         for rrow in table.iterrows():
@@ -110,17 +110,35 @@ class LocalVolume(object):
 
             sk = parse_skycoord(row["skycoord"], row["distance"])
 
-            if (not np.isnan(row["radius"])) and (row["name"] not in _exclude):
+            if (not np.isnan(row["diameter"])) and (row["name"] not in _exclude):
 
                 galaxy = Galaxy(name=row["name"],
                                 distance=row["distance"],
                                 center=sk,
-                                radius=row["radius"],
+                                diameter=row["diameter"],
                                 ratio=row["ratio"])
 
                 output[row["name"]] = galaxy
 
         return cls(output)
+
+    def read_population(self, population_file: str) -> None:
+
+        self._population: Population = Population.from_file(population_file)
+        self.prepare_for_popynth()
+        
+        self._selected_galaxies: List[Galaxy] = []
+        for i, (ra, dec), in enumerate(
+            zip(self._population.ra[self._population.selection],
+                self._population.dec[self._population.selection])
+        ):
+
+            flag, galaxy = self.intercepts_galaxy_numba(ra, dec)
+            #flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
+
+            if flag:
+
+                self._selected_galaxies.append(galaxy)
 
     @property
     def n_galaxies(self) -> int:
@@ -137,6 +155,27 @@ class LocalVolume(object):
         for name, galaxy in self.galaxies.items():
 
             galaxy.angle = np.random.uniform(0, 360)
+
+    @property
+    def angles(self):
+
+        return np.array([galaxy.angle for _, galaxy in self.galaxies.items()])
+
+    @property
+    def diameters(self):
+
+        return np.array([galaxy.diameter for _, galaxy in self.galaxies.items()])
+
+    @property
+    def areas(self):
+
+        return np.array([galaxy.area for _, galaxy in self.galaxies.items()])
+
+    def set_angles(self, angles):
+
+        for i, (_, galaxy) in enumerate(self.galaxies):
+
+            galaxy.angle = angles[i]
 
     def prepare_for_popynth(self) -> None:
         """
@@ -157,7 +196,7 @@ class LocalVolume(object):
         for i, (name, galaxy) in enumerate(self.galaxies.items()):
 
             # convert to degree from arcmin
-            self._radii[i] = galaxy.radius * (1. / 60.)
+            self._radii[i] = galaxy.diameter * (1. / 60.)
 
             # convert to radian
             self._angles[i] = np.deg2rad(galaxy.angle)
@@ -243,7 +282,7 @@ class LocalVolume(object):
 
             x, y, z = v.center.cartesian.xyz.to("Mpc").value
 
-            # sphere = Sphere(x,y,z, radius=v.radius/1000.,  color="white")
+            # sphere = Sphere(x,y,z, diameter=v.diameter/1000.,  color="white")
             # sphere.plot()
 
             xs.append(x)
@@ -274,6 +313,97 @@ class LocalVolume(object):
         ipv.show()
 
         return r_value
+
+    def show_selected_galaxies(self):
+
+        if self._population is None:
+
+            return
+
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": "astro degrees mollweide"})
+        fig.set_size_inches((7, 5))
+
+        selected_ra = self._population.ra[self._population.selection]
+        selected_dec = self._population.dec[self._population.selection]
+
+        # colors = plt.cm.Set1(np.linspace(
+        #     0, 1, len(self._selected_galaxies)))
+
+        names = np.unique([galaxy.name for galaxy in self._selected_galaxies])
+
+        colors = plt.cm.Set1(list(range(len(names))))
+
+        _plotted_galaxies = []
+
+        i = 0
+
+        for ra, dec, galaxy in zip(
+            selected_ra,
+            selected_dec,
+            self._selected_galaxies,
+
+        ):
+            if galaxy.name not in _plotted_galaxies:
+
+                a = galaxy.diameter * (1 / 60)
+                b = a * galaxy.ratio
+
+                ellipse = Ellipse(
+                    (galaxy.center.ra.deg, galaxy.center.dec.deg),
+                    a,
+                    b,
+                    galaxy.angle,
+                    alpha=0.5,
+                    color=colors[i],
+                    label=galaxy.name,
+                    transform=ax.get_transform("icrs")
+
+                )
+                e = ax.add_patch(ellipse)
+                # e.set_transform(ax.get_transform("icrs"))
+
+                i += 1
+
+                _plotted_galaxies.append(galaxy.name)
+
+            ax.scatter(
+                ra,
+                dec,
+                transform=ax.get_transform("icrs"),
+                color="k",
+                edgecolor="k",
+                s=2,
+            )
+
+        ax.legend()
+
+        return fig, ax
+
+    def show_all_galaxies(self, frame="icrs"):
+
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": "astro degrees mollweide"})
+        fig.set_size_inches((7, 5))
+
+        ra = self._spatial_distribution.ra
+        dec = self._spatial_distribution.dec
+
+        for _, galaxy in self._catalog.galaxies.items():
+
+            a = galaxy.diameter * (1 / 60)
+            b = a * galaxy.ratio
+
+            ellipse = Ellipse(
+                (galaxy.center.ra.deg, galaxy.center.dec.deg),
+                a,
+                b,
+                galaxy.angle,
+                alpha=0.5,
+                label=galaxy.name,
+            )
+            e = ax.add_patch(ellipse)
+            e.set_transform(ax.get_transform(frame))
 
 
 def parse_skycoord(x: str, distance: float) -> SkyCoord:
@@ -319,10 +449,10 @@ def _intercepts_galaxy(ra, dec, radii, ra_center, dec_center, angle, ratio, N):
 
 
 @nb.jit(fastmath=False)
-def _contains_point(ra, dec, radius, ra_center, dec_center, angle, ratio):
+def _contains_point(ra, dec, diameter, ra_center, dec_center, angle, ratio):
 
-    # assume radius is in degree
-    a = radius
+    # assume diameter is in degree
+    a = diameter
 
     b = a * ratio  # deg
 
@@ -338,7 +468,7 @@ def _contains_point(ra, dec, radius, ra_center, dec_center, angle, ratio):
     y_t = x * sin_angle + y * cos_angle
 
     # Get normalised distance of point to center
-    r_norm = (x_t/ (a / 2))**2 + (y_t/(b / 2))**2
+    r_norm = (x_t / (a / 2))**2 + (y_t/(b / 2))**2
 
     if r_norm <= 1:
 
