@@ -1,4 +1,4 @@
-seed: 123345
+seed: 32145
 generator:
     flavor: pareto_sfr
 

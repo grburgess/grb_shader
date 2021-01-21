@@ -160,7 +160,7 @@ class LocalVolume(object):
             self._radii[i] = galaxy.radius * (1. / 60.)
 
             # convert to radian
-            self._angles[i] = np.rad2deg(galaxy.angle)
+            self._angles[i] = np.deg2rad(galaxy.angle)
 
             self._ra[i] = galaxy.center.ra.deg
             self._dec[i] = galaxy.center.dec.deg
