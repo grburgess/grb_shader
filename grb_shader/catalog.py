@@ -24,6 +24,17 @@ class Galaxy(object):
     ratio: float
     angle: float = 0
 
+
+    def __post_init__(self):
+           
+        # Some useful ellipse properties
+
+        self.a = self.radius / 60  # deg
+
+        self.b = self.a * self.ratio  # deg
+
+        self.area = np.pi * np.deg2rad(self.a) * np.deg2rad(self.b)  # rad
+
     def contains_point(self, ra: float, dec: float) -> bool:
         """
         does this galaxy contain this point?
@@ -34,16 +45,40 @@ class Galaxy(object):
         :param dec:
         """
 
-        a = self.radius * (1 / 60)  # deg
 
-        return _contains_point(ra,
-                               dec,
-                               a,
-                               self.center.ra.deg,
-                               self.center.dec.deg,
-                               np.deg2rad(self.angle),
-                               self.ratio
-                               )
+        cos_angle = np.cos(np.pi - np.deg2rad(self.angle))
+        sin_angle = np.sin(np.pi - np.deg2rad(self.angle))
+
+        # Get xy dist from point to center
+        x = ra - self.center.ra.deg
+        y = dec - self.center.dec.deg
+
+        # Transform to along major/minor axes
+        x_t = x * cos_angle - y * sin_angle
+        y_t = x * sin_angle + y * cos_angle
+
+        # Get normalised distance of point to center
+        r_norm = x_t ** 2 / (self.a / 2) ** 2 + y_t ** 2 / (self.b / 2) ** 2
+
+        if r_norm <= 1:
+
+            return True
+
+        else:
+
+            return False
+
+
+        # a = self.radius * (1 / 60)  # deg
+
+        # return _contains_point(ra,
+        #                        dec,
+        #                        a,
+        #                        self.center.ra.deg,
+        #                        self.center.dec.deg,
+        #                        np.deg2rad(self.angle),
+        #                        self.ratio
+        #                        )
 
 
 _exclude = ["LMC", "SMC", ]
@@ -264,7 +299,7 @@ def parse_skycoord(x: str, distance: float) -> SkyCoord:
     return sk
 
 
-@nb.jit(fastmath=True)
+@nb.jit(fastmath=False)
 def _intercepts_galaxy(ra, dec, radii, ra_center, dec_center, angle, ratio, N):
 
     for n in range(N):
@@ -283,7 +318,7 @@ def _intercepts_galaxy(ra, dec, radii, ra_center, dec_center, angle, ratio, N):
     return False, -1
 
 
-@nb.jit(fastmath=True)
+@nb.jit(fastmath=False)
 def _contains_point(ra, dec, radius, ra_center, dec_center, angle, ratio):
 
     # assume radius is in degree

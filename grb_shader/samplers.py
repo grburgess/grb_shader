@@ -68,7 +68,9 @@ class CatalogSelector(SpatialSelection):
             zip(self._spatial_distribution.ra, self._spatial_distribution.dec)
         ):
 
-            flag, galaxy = self._catalog.intercepts_galaxy_numba(ra, dec)
+            #flag, galaxy = self._catalog.intercepts_galaxy_numba(ra, dec)
+            flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
+            
 
             if flag:
 
@@ -122,9 +124,11 @@ class CatalogSelector(SpatialSelection):
                     alpha=0.5,
                     color=colors[i],
                     label=galaxy.name,
+                    transform=ax.get_transform("icrs")
+                    
                 )
                 e = ax.add_patch(ellipse)
-                e.set_transform(ax.get_transform("icrs"))
+                #e.set_transform(ax.get_transform("icrs"))
 
                 i+=1
 
