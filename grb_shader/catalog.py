@@ -1,16 +1,19 @@
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Type, Union
 
 import astropy.units as u
 import ipyvolume as ipv
-import pythreejs
 import ipywidgets as widgets
+import numba as nb
 import numpy as np
 import pandas as pd
+import pythreejs
 from astropy.coordinates import SkyCoord
 
-from grb_shader.utils.package_data import get_path_of_data_file
 from grb_shader.utils.disk import Sphere
+from grb_shader.utils.package_data import get_path_of_data_file
+
 
 @dataclass
 class Galaxy(object):
@@ -33,33 +36,20 @@ class Galaxy(object):
 
         a = self.radius * (1 / 60)  # deg
 
-        b = a * self.ratio  # deg
-
-        cos_angle = np.cos(np.pi - np.deg2rad(self.angle))
-        sin_angle = np.sin(np.pi - np.deg2rad(self.angle))
-
-        # Get xy dist from point to center
-        x = ra - self.center.ra.deg
-        y = dec - self.center.dec.deg
-
-        # Transform to along major/minor axes
-        x_t = x * cos_angle - y * sin_angle
-        y_t = x * sin_angle + y * cos_angle
-
-        # Get normalised distance of point to center
-        r_norm = x_t ** 2 / (a / 2) ** 2 + y_t ** 2 / (b / 2) ** 2
-
-        if r_norm <= 1:
-
-            return True
-
-        else:
-
-            return False
+        return _contains_point(ra,
+                               dec,
+                               a,
+                               self.center.ra.deg,
+                               self.center.dec.deg,
+                               np.deg2rad(self.angle),
+                               self.ratio
+                               )
 
 
 _exclude = ["LMC", "SMC", ]
-        
+#_exclude = []
+
+
 @dataclass
 class LocalVolume(object):
     galaxies: Dict[str, Galaxy]
@@ -69,7 +59,7 @@ class LocalVolume(object):
         """
         Construct a LocalVolume from the LV catalog
         """
-        output = {}
+        output = OrderedDict()
 
         table = pd.read_csv(
             get_path_of_data_file("lv_catalog.txt"),
@@ -86,7 +76,7 @@ class LocalVolume(object):
             sk = parse_skycoord(row["skycoord"], row["distance"])
 
             if (not np.isnan(row["radius"])) and (row["name"] not in _exclude):
-            
+
                 galaxy = Galaxy(name=row["name"],
                                 distance=row["distance"],
                                 center=sk,
@@ -97,7 +87,11 @@ class LocalVolume(object):
 
         return cls(output)
 
-    def sample_angles(self, seed=None):
+    @property
+    def n_galaxies(self) -> int:
+        return len(self.galaxies)
+
+    def sample_angles(self, seed=1234) -> None:
         """
         Sample random orientations for galaxies.
         """
@@ -108,6 +102,62 @@ class LocalVolume(object):
         for name, galaxy in self.galaxies.items():
 
             galaxy.angle = np.random.uniform(0, 360)
+
+    def prepare_for_popynth(self) -> None:
+        """
+        extract info for fast reading
+
+        """
+
+        # sample the angles
+
+        self.sample_angles()
+
+        self._radii = np.empty(self.n_galaxies)
+        self._angles = np.empty(self.n_galaxies)
+        self._ra = np.empty(self.n_galaxies)
+        self._dec = np.empty(self.n_galaxies)
+        self._ratio = np.empty(self.n_galaxies)
+
+        for i, (name, galaxy) in enumerate(self.galaxies.items()):
+
+            # convert to degree from arcmin
+            self._radii[i] = galaxy.radius * (1. / 60.)
+
+            # convert to radian
+            self._angles[i] = np.rad2deg(galaxy.angle)
+
+            self._ra[i] = galaxy.center.ra.deg
+            self._dec[i] = galaxy.center.dec.deg
+
+            self._ratio[i] = galaxy.ratio
+
+    def intercepts_galaxy_numba(
+        self, ra: float, dec: float
+    ) -> Tuple[bool, Union[Galaxy, None]]:
+        """
+        Test if the sky point intecepts a galaxy in the local volume
+        and if so return that galaxy
+        """
+
+        flag, idx = _intercepts_galaxy(ra,
+                                       dec,
+                                       self._radii,
+                                       self._ra,
+                                       self._dec,
+                                       self._angles,
+                                       self._ratio,
+                                       self.n_galaxies
+                                       )
+
+        if idx > 0:
+            out = list(self.galaxies.values())[idx]
+
+        else:
+
+            out = None
+
+        return flag, out
 
     def intercepts_galaxy(
         self, ra: float, dec: float
@@ -161,7 +211,6 @@ class LocalVolume(object):
             # sphere = Sphere(x,y,z, radius=v.radius/1000.,  color="white")
             # sphere.plot()
 
-            
             xs.append(x)
             ys.append(y)
             zs.append(z)
@@ -185,10 +234,8 @@ class LocalVolume(object):
         widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
         r_value = toggle_rotate
 
-        
-
         ipv.xyzlim(12)
-        
+
         ipv.show()
 
         return r_value
@@ -215,6 +262,56 @@ def parse_skycoord(x: str, distance: float) -> SkyCoord:
     )
 
     return sk
+
+
+@nb.jit(fastmath=True)
+def _intercepts_galaxy(ra, dec, radii, ra_center, dec_center, angle, ratio, N):
+
+    for n in range(N):
+
+        if _contains_point(ra,
+                           dec,
+                           radii[n],
+                           ra_center[n],
+                           dec_center[n],
+                           angle[n],
+                           ratio[n]
+                           ):
+
+            return True, n
+
+    return False, -1
+
+
+@nb.jit(fastmath=True)
+def _contains_point(ra, dec, radius, ra_center, dec_center, angle, ratio):
+
+    # assume radius is in degree
+    a = radius
+
+    b = a * ratio  # deg
+
+    cos_angle = np.cos(np.pi - angle)
+    sin_angle = np.sin(np.pi - angle)
+
+    # Get xy dist from point to center
+    x = ra - ra_center
+    y = dec - dec_center
+
+    # Transform to along major/minor axes
+    x_t = x * cos_angle - y * sin_angle
+    y_t = x * sin_angle + y * cos_angle
+
+    # Get normalised distance of point to center
+    r_norm = (x_t/ (a / 2))**2 + (y_t/(b / 2))**2
+
+    if r_norm <= 1:
+
+        return True
+
+    else:
+
+        return False
 
 
 __all__ = ["Galaxy", "LocalVolume"]
