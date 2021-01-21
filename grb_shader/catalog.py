@@ -122,11 +122,11 @@ class LocalVolume(object):
 
         return cls(output)
 
-    def read_population(self, population_file: str) -> None:
+    def read_population(self, population: Population) -> None:
 
-        self._population: Population = Population.from_file(population_file)
+        self._population: Population = population
         self.prepare_for_popynth()
-        
+
         self._selected_galaxies: List[Galaxy] = []
         for i, (ra, dec), in enumerate(
             zip(self._population.ra[self._population.selection],
@@ -143,6 +143,10 @@ class LocalVolume(object):
     @property
     def n_galaxies(self) -> int:
         return len(self.galaxies)
+
+    @property
+    def selected_galaxies(self):
+        return self._selected_galaxies
 
     def sample_angles(self, seed=1234) -> None:
         """
@@ -298,6 +302,102 @@ class LocalVolume(object):
             color="white",
         )
 
+        if self._population is not None:
+            xs = []
+            ys = []
+            zs = []
+
+            
+            for v in self._selected_galaxies:
+
+                x, y, z = v.center.cartesian.xyz.to("Mpc").value
+
+                # sphere = Sphere(x,y,z, diameter=v.diameter/1000.,  color="white")
+                # sphere.plot()
+
+                xs.append(x)
+                ys.append(y)
+                zs.append(z)
+
+            ipv.scatter(
+                np.array(xs),
+                np.array(ys),
+                np.array(zs),
+                marker="sphere",
+                size=1.4,
+                color="yellow",
+            )
+
+            selection = self._population.selection
+
+            xs = []
+            ys = []
+            zs = []
+
+            for ra, dec in zip(self._population.ra[~selection], self._population.dec[~selection]):
+
+                sk = SkyCoord(ra=ra*u.deg, dec=dec*u.deg,
+                              frame="icrs", distance=25 * u.Mpc)
+
+                x, y, z = sk.cartesian.xyz.to("Mpc").value
+
+                xs.append(x)
+                ys.append(y)
+                zs.append(z)
+
+            ipv.scatter(
+                np.array(xs),
+                np.array(ys),
+                np.array(zs),
+                marker="sphere",
+                size=0.25,
+                color="red",
+            )
+
+            xs = []
+            ys = []
+            zs = []
+
+
+            for ra, dec in zip(self._population.ra[selection], self._population.dec[selection]):
+
+                sk = SkyCoord(ra=ra*u.deg, dec=dec*u.deg,
+                              frame="icrs", distance=25 * u.Mpc)
+
+                x, y, z = sk.cartesian.xyz.to("Mpc").value
+
+                xs.append(x)
+                ys.append(y)
+                zs.append(z)
+
+            ipv.scatter(
+                np.array(xs),
+                np.array(ys),
+                np.array(zs),
+                marker="sphere",
+                size=1.4,
+                color="yellow",
+            )
+
+            for x, y, x in zip(xs, ys, zs):
+
+                ipv.plot(
+                    np.array([x, 0]),
+                    np.array([y, 0]),
+                    np.array([z, 0]),
+                    color="orange"
+
+
+
+
+
+                )
+
+            ipv.xyzlim(30)
+        else:
+
+            ipv.xyzlim(12)
+
         fig.camera.up = [1, 0, 0]
         control = pythreejs.OrbitControls(controlling=fig.camera)
         fig.controls = control
@@ -307,8 +407,6 @@ class LocalVolume(object):
         toggle_rotate = widgets.ToggleButton(description="Rotate")
         widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
         r_value = toggle_rotate
-
-        ipv.xyzlim(12)
 
         ipv.show()
 
