@@ -5,7 +5,7 @@ Throwing shade on GRBs with galaxies.
 
 This tool uses [popsynth](https://cosmogrb.readthedocs.io/en/latest/) to read the [catalog](https://www.sao.ru/lv/lvgdb/introduction.php) of Local Volume galaxies:
 
-
+<img src="https://raw.githubusercontent.com/grburgess/grb_shader/master/media/pre.gif" alt="drawing" width="800" align="center"/>
 
 
 ## Second
