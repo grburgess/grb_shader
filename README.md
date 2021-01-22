@@ -15,7 +15,6 @@ Then create a a population of GRBs from a given redshift and luminosity distribu
 
 <img src="https://raw.githubusercontent.com/grburgess/grb_shader/master/media/post.gif" alt="drawing" width="800" align="center"/>
 
-
 ## Third
 
 The population of GRBs is run through [cosmogrb](https://cosmogrb.readthedocs.io/en/latest/) to see what their detected properties are.
