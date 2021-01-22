@@ -379,19 +379,15 @@ class LocalVolume(object):
                 color="yellow",
             )
 
-            for x, y, x in zip(xs, ys, zs):
+            # for x, y, x in zip(xs, ys, zs):
 
-                ipv.plot(
-                    np.array([x, 0]),
-                    np.array([y, 0]),
-                    np.array([z, 0]),
-                    color="orange"
+            #     ipv.plot(
+            #         np.array([x, 0]),
+            #         np.array([y, 0]),
+            #         np.array([z, 0]),
+            #         color="orange
 
-
-
-
-
-                )
+#                )
 
             ipv.xyzlim(30)
         else:
@@ -406,11 +402,12 @@ class LocalVolume(object):
         control.autoRotate = True
         toggle_rotate = widgets.ToggleButton(description="Rotate")
         widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
-        r_value = toggle_rotate
+        #r_value = toggle_rotate
 
+        ipv.pylab.save("/Users/jburgess/Desktop/test.html")
         ipv.show()
 
-        return r_value
+        return #r_value
 
     def show_selected_galaxies(self):
 
