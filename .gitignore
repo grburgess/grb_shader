@@ -127,4 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/examples/*.ipynb
+
+#Jupyter notebooks 
+*.ipynb
+
+# pop synth data
+*.h5
