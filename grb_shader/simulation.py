@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from joblib import Parallel, delayed
-from popsynth import Population, silence_progress, silence_warnings
+from popsynth import Population, silence_progress_bars, silence_warnings
 from tqdm.auto import tqdm
 
 from .grb_pop import GRBPop
@@ -26,7 +26,7 @@ def play_god(param_file: str,
     bp.mkdir(parents=True, exist_ok=True)
     
     silence_warnings()
-    silence_progress()
+    silence_progress_bars()
 
     with p.open("r") as f:
 
@@ -40,7 +40,7 @@ def play_god(param_file: str,
 
         gp.population.writeto(f"{base_file_name}_{int(seed + i *10)}.h5")
 
-    sims = Parallel(n_jobs=6)(delayed(sim_one)(i)
+    sims = Parallel(n_jobs=n_cpus)(delayed(sim_one)(i)
                               for i in tqdm(range(n_sims), desc="playing god"))
 
 

@@ -11,11 +11,14 @@ from .catalog import Galaxy, LocalVolume
 
 
 class TDecaySampler(ps.AuxiliarySampler):
+    # inherits from ps.AuxiliarySampler
+    _auxiliary_sampler_name = "TDecaySampler"
     def __init__(self):
         """
-        samples the decay of the of the pulse
+        samples the decay of the pulse
         """
 
+        #call super class's __init__ method
         super(TDecaySampler, self).__init__(name="tdecay", observed=False)
 
     def true_sampler(self, size):
@@ -30,6 +33,7 @@ class TDecaySampler(ps.AuxiliarySampler):
 
 
 class DurationSampler(ps.AuxiliarySampler):
+    _auxiliary_sampler_name = "DurationSampler"
     def __init__(self):
         "samples how long the pulse last"
 

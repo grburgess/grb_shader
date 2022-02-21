@@ -4,6 +4,7 @@ generator:
     flavor: bpl_sfr
 
     parameters:
+        a: 0.53 #CHECK AGAIN
         r0: 20.
         rise: 2.8
         decay: 3.5
@@ -25,7 +26,7 @@ spectral:
     mu: -1
     tau: 0.25
 
-# specfiy the temporal structureq
+# specfiy the temporal structure
     
 temporal profile:
   flavor: constant

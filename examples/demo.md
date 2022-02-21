@@ -5,29 +5,28 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.2'
-      jupytext_version: 1.9.1
+      format_version: '1.3'
+      jupytext_version: 1.13.1
   kernelspec:
-    display_name: Python 3
+    display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
 
 ```python
-from grb_shader import LocalVolume, play_god, GRBPop, RestoredSimulation, get_ghirlanda_model
+from grb_shader import LocalVolume, play_god, GRBPop, RestoredSimulation,get_ghirlanda_model
 
 import popsynth
-#popsynth.update_logging_level("INFO")
-popsynth.silence_progress()
+popsynth.update_logging_level("INFO")
+popsynth.silence_progress_bars()
 popsynth.silence_warnings()
-
 
 %matplotlib notebook
 ```
 
 ```python
 lv = LocalVolume.from_lv_catalog()
-#lv.display()
+lv.display()
 ```
 
 ```python
@@ -55,4 +54,8 @@ lv.show_selected_galaxies()
 
 ```python
 lv.display()
+```
+
+```python
+
 ```

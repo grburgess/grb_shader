@@ -46,8 +46,7 @@ class GRBPop(object):
 
     def engage(self) -> None:
 
-        self._population = self._population_gen.draw_survey(
-            no_selection=False, boundary=1e-2)
+        self._population = self._population_gen.draw_survey()
 
     @property
     def population(self) -> ps.Population:

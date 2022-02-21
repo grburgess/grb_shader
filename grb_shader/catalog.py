@@ -404,7 +404,7 @@ class LocalVolume(object):
         widgets.jslink((control, "autoRotate"), (toggle_rotate, "value"))
         #r_value = toggle_rotate
 
-        ipv.pylab.save("/Users/jburgess/Desktop/test.html")
+        ipv.pylab.save("/home/eschoe/test.html")
         ipv.show()
 
         return #r_value
