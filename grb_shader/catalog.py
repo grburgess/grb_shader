@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple, Type, Union
+from typing import List, Dict, Optional, Tuple, Type, Union
 
 import astropy.units as u
 import ipyvolume as ipv
@@ -511,8 +511,8 @@ def parse_skycoord(x: str, distance: float) -> SkyCoord:
 
     ra, dec = x.split(sign)
 
-    ra_string = f"{ra[:2]}h{ra[2:4]}min{ra[4:]}s"
-    dec_str = f"{sign}{dec[:2]}.{dec[2:]}"
+    ra_string = f"{ra[:2]}h{ra[2:4]}m{ra[4:]}s"
+    dec_str = f"{sign}{dec[:2]}d{dec[2:4]}m{dec[4:]}s"
 
     sk = SkyCoord(
         f"{ra_string} {dec_str}",
