@@ -134,7 +134,7 @@ class Galaxy(object):
         r_norm = (x_t / tan_alpha) ** 2 + (y_t / tan_beta) ** 2
 
         #test if GRB lies within cone
-        if r_norm <= vec_GRB[0]**2:
+        if np.sqrt(r_norm) <= vec_GRB[2]:
 
             return True
 
@@ -221,7 +221,7 @@ class LocalVolume(object):
 
         for name, galaxy in self.galaxies.items():
 
-            galaxy.angle = np.random.uniform(0, 360)
+            galaxy.angle = np.random.uniform(0, 180)
 
     @property
     def angles(self):
