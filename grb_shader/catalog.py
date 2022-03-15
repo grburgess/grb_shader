@@ -15,6 +15,7 @@ from matplotlib.patches import Ellipse
 from popsynth import Population
 
 from grb_shader.utils.package_data import get_path_of_data_file
+from scipy.spatial.transform import Rotation
 
 
 @dataclass
@@ -29,12 +30,78 @@ class Galaxy(object):
     def __post_init__(self):
 
         # Some useful ellipse properties
-
+        #major angular diameter
         self.a = self.diameter / 60  # deg
-
+        #minor angular diameter
         self.b = self.a * self.ratio  # deg
 
         self.area = np.pi * np.deg2rad(self.a) * np.deg2rad(self.b)  # rad
+
+        self.vec_gcen = self.sph2cart(self.center.ra.deg, self.center.dec.deg)
+
+        self.rotation_to_gcenter_from_ez = self.rotation_to_from(self.vec_gcen, np.array([0,0,1]))
+    
+        #print('Hello')
+
+    def rotation_to_from(self, v1: np.ndarray, v2: np.ndarray, tol: float = 1e-9) -> Rotation:
+        """
+        Compute the rotation from v2 to v1 using quaternions
+
+        :param v1: vector to rotate to (3D numpy array)
+        :param v2: vector to rotate from (3D numpy array)
+        :param tol: tolerance below which vectors are assumed parallel or anti-parallel
+            (from dot product)
+        """
+
+        #normalise vectors
+        v1 = v1 / np.linalg.norm(v1, axis=-1, keepdims=True)
+        v2 = v2 / np.linalg.norm(v2, axis=-1, keepdims=True)
+
+        #check if vectors are parallel or antiparallel
+        dot_product = np.sum(v1*v2)
+
+        if np.abs(dot_product-1)<tol:
+            #v1 and v2 are parallel -> no rotation needed (theta = 0)
+            quat = np.array([0,0,0,1])
+
+        elif np.abs(dot_product+1)<tol:
+            #v1 and v2 are antiparallel -> rotate by 180 degrees
+            #for construction of rotation axis, any second vector can be chosen,
+            #so, use x-axis as a helper vector
+            crossproduct = np.cross(v2, [1,0,0], axis=-1)
+            crossproduct /= np.linalg.norm(crossproduct)
+            #construct unit quaternion with theta=180 degrees
+            quat = np.hstack((crossproduct, 0))
+
+        else:
+            #compute unit rotation vector from cross product
+            crossproduct = np.cross(v2, v1, axis=-1)
+            crossproduct /= np.linalg.norm(crossproduct)
+            #compute rotation angle from dot product
+            theta = np.arccos(np.sum(v1 * v2))
+            #construct unit quaternion
+            quat = np.hstack((np.sin(theta/2) * crossproduct, np.cos(theta/2)))
+
+        rot = Rotation.from_quat(quat)
+
+        return rot
+
+    def sph2cart(self,ra:float, dec: float) -> np.ndarray:
+        """
+        Convert spherical to cartesian unit vectors (r=1)
+
+        :param ra: right ascension of point - in degrees
+        :param dec: declination of point - in degrees
+        """
+        #convert coordinates to rad
+        ra_rad = np.deg2rad(ra)
+        dec_rad = np.deg2rad(dec)
+
+        #convert to Cartesian coordinates
+        x = np.sin(ra_rad) *np.cos(dec_rad)
+        y = np.sin(ra_rad) *np.sin(dec_rad)
+        z = np.cos(ra_rad)
+        return np.array([x,y,z])
 
     def contains_point(self, ra: float, dec: float) -> bool:
         """
@@ -42,42 +109,38 @@ class Galaxy(object):
 
         Assumes galaxy is an ellipse with object's properties.
 
-        :param ra:
-        :param dec:
+        :param ra: right ascension of GRB
+        :param dec: declination of GRB
         """
+        #Compute Cartesian unit vector pointing in GRB direction
+        vec_GRB = self.sph2cart(ra, dec)
 
-        cos_angle = np.cos(np.pi - np.deg2rad(self.angle))
-        sin_angle = np.sin(np.pi - np.deg2rad(self.angle))
+        #rotate GRB vector by angle between z-axis and center of galaxy 
+        self.rotation_to_gcenter_from_ez.apply(vec_GRB)
 
-        # Get xy dist from point to center
-        x = ra - self.center.ra.deg
-        y = dec - self.center.dec.deg
+        #consider elliptic cone with random angle between x-axis and semi-major axis
+        cos_angle = np.cos(np.deg2rad(self.angle))
+        sin_angle = np.sin(np.deg2rad(self.angle))
 
-        # Transform to along major/minor axes
-        x_t = x * cos_angle - y * sin_angle
-        y_t = x * sin_angle + y * cos_angle
+        #rotate x and y coordinates by angle
+        x_t = vec_GRB[0] * cos_angle - vec_GRB[1] * sin_angle
+        y_t = vec_GRB[0] * sin_angle + vec_GRB[1] * cos_angle
+
+        #define tangent of semi-major angular distance and semi-minor angular distance
+        tan_alpha = np.tan(self.a/2)
+        tan_beta = np.tan(self.b/2)
 
         # Get normalised distance of point to center
-        r_norm = x_t ** 2 / (self.a / 2) ** 2 + y_t ** 2 / (self.b / 2) ** 2
+        r_norm = (x_t / tan_alpha) ** 2 + (y_t / tan_beta) ** 2
 
-        if r_norm <= 1:
+        #test if GRB lies within cone
+        if r_norm <= vec_GRB[0]**2:
 
             return True
 
         else:
 
             return False
-
-        # a = self.diameter * (1 / 60)  # deg
-
-        # return _contains_point(ra,
-        #                        dec,
-        #                        a,
-        #                        self.center.ra.deg,
-        #                        self.center.dec.deg,
-        #                        np.deg2rad(self.angle),
-        #                        self.ratio
-        #                        )
 
 
 _exclude = ["LMC", "SMC", ]
