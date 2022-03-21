@@ -39,9 +39,7 @@ class Galaxy(object):
 
         self.vec_gcen = self.sph2cart(self.center.ra.deg, self.center.dec.deg)
 
-        self.rotation_to_gcenter_from_ez = self.rotation_to_from(self.vec_gcen, np.array([0,0,1]))
-    
-        #print('Hello')
+        self.rotation_to_ez_from_gcenter = self.rotation_to_from(np.array([0,0,1]),self.vec_gcen)
 
     def rotation_to_from(self, v1: np.ndarray, v2: np.ndarray, tol: float = 1e-9) -> Rotation:
         """
@@ -97,10 +95,14 @@ class Galaxy(object):
         ra_rad = np.deg2rad(ra)
         dec_rad = np.deg2rad(dec)
 
-        #convert to Cartesian coordinates
-        x = np.sin(ra_rad) *np.cos(dec_rad)
-        y = np.sin(ra_rad) *np.sin(dec_rad)
-        z = np.cos(ra_rad)
+        #dec_rad = [-pi/2,pi/2] but theta=[0,pi] (spherical coordinates)
+        theta_rad = dec_rad + np.pi/2.
+
+        #convert spherical to Cartesian coordinates
+        x = np.cos(ra_rad) * np.sin(theta_rad)
+        y = np.sin(ra_rad) * np.sin(theta_rad)
+        z = np.cos(theta_rad)
+        
         return np.array([x,y,z])
 
     def contains_point(self, ra: float, dec: float) -> bool:
@@ -116,7 +118,7 @@ class Galaxy(object):
         vec_GRB = self.sph2cart(ra, dec)
 
         #rotate GRB vector by angle between z-axis and center of galaxy 
-        self.rotation_to_gcenter_from_ez.apply(vec_GRB)
+        self.rotation_to_ez_from_gcenter.apply(vec_GRB)
 
         #consider elliptic cone with random angle between x-axis and semi-major axis
         cos_angle = np.cos(np.deg2rad(self.angle))
@@ -127,8 +129,8 @@ class Galaxy(object):
         y_t = vec_GRB[0] * sin_angle + vec_GRB[1] * cos_angle
 
         #define tangent of semi-major angular distance and semi-minor angular distance
-        tan_alpha = np.tan(self.a/2)
-        tan_beta = np.tan(self.b/2)
+        tan_alpha = np.tan(np.deg2rad(self.a/2.))
+        tan_beta = np.tan(np.deg2rad(self.b/2.))
 
         # Get normalised distance of point to center
         r_norm = (x_t / tan_alpha) ** 2 + (y_t / tan_beta) ** 2
