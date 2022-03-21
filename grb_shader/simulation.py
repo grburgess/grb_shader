@@ -18,6 +18,15 @@ def play_god(param_file: str,
              seed: int = 1234
 
              ) -> None:
+    """
+    Generate populations of GRBs
+    
+    :param_file: path to file determining redshift and luminosity distribution parameters
+    :n_sims: number of produced populations
+    :n_cpus: number of cpus used to create populations
+    :base_file_name: prefix for created files
+    :seed: seed used for random sampling
+    """
 
     p: Path = Path(param_file)
 

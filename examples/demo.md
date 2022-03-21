@@ -25,13 +25,15 @@ popsynth.silence_warnings()
 ```
 
 ```python
+#generate dictionary with names of all local volume galaxies and the object Galaxy with corresponding properties
 lv = LocalVolume.from_lv_catalog()
-lv.display()
+#lv.display()
 ```
 
 ```python
 sim_path = "sims/pop_"
 
+#generate population of SGRBs
 play_god(param_file=get_ghirlanda_model(),
          n_sims=500,
          n_cpus=8, 
@@ -39,21 +41,23 @@ play_god(param_file=get_ghirlanda_model(),
 ```
 
 ```python
+sim_path = "sims/pop_"
 r = RestoredSimulation(sim_path)
 ```
 
 ```python
+#histogram which galaxy was hit by a SGRB how many times
 r.hist_galaxies(17, exclude=["SagdSph", "MESSIER031"])
 ```
 
 ```python
-lv.read_population(r.populations[1])
+lv.read_population(r.populations[30])
 lv.show_selected_galaxies()
 
 ```
 
 ```python
-lv.display()
+#lv.display()
 ```
 
 ```python

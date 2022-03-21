@@ -8,10 +8,11 @@ import yaml
 from joblib import wrap_non_picklable_objects
 from popsynth.selection_probability import UnitySelection
 
-from .samplers import CatalogSelector, DurationSampler
+from .samplers import CatalogSelector, DurationSampler, TDecaySampler
 
 
 class GRBPop(object):
+    # generate population of GRBs
 
     def __init__(self, base_population: ps.PopulationSynth, observed_quantities: List[ps.AuxiliarySampler]):
 
@@ -45,7 +46,9 @@ class GRBPop(object):
         # self._population_gen.add_observed_quantity(angle_sampler)
 
     def engage(self) -> None:
-
+        """
+        Sample from all distributions and create a 'Population' object
+        """
         self._population = self._population_gen.draw_survey()
 
     @property
@@ -62,7 +65,14 @@ class GRBPop(object):
 
     @classmethod
     def from_yaml(cls, file_name) -> "GRBPop":
+        """
+        Read parameters for redshift and luminosity distributions 
+        from file_name.yml and save in dict
 
+        Generate GRBPop class from dictionary
+
+        :file_name: string, file name and directory to yaml data file
+        """
         p: Path = Path(file_name)
 
         with p.open("r") as f:
@@ -73,9 +83,14 @@ class GRBPop(object):
 
     @classmethod
     def from_dict(cls, inputs: Dict) -> "GRBPop":
+        """
+        Use parameters for distribution functions and generate population of GRBs
+        """
 
         seed = inputs["seed"]
 
+        #look up in dict which is defined below class if constant or pulse
+        #set corresponding samplers with defined parameters from yml file
         base_gen = _base_gen_lookup[inputs["generator"]["flavor"]](seed=seed,
                                                                    **inputs["generator"]["parameters"])
 
