@@ -4,7 +4,7 @@ generator:
     flavor: bpl_sfr
 
     parameters:
-        a: 0.53 #CHECK AGAIN
+        a: 1.
         r0: 20.
         rise: 2.8
         decay: 3.5
