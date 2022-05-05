@@ -175,13 +175,13 @@ class PulseProfile(TemporalProfile):
 
 class ConstantProfile(TemporalProfile):
 
-    def _construct(self, log_t90_mu, log_t90_tau):
+    def _construct(self, t90_mu, t90_tau):
 
-        t90 = ps.aux_samplers.Log10NormalAuxSampler(
+        t90 = ps.aux_samplers.LogNormalAuxSampler(
             name="t90", observed=False)
 
-        t90.mu = log_t90_mu
-        t90.tau = log_t90_tau
+        t90.mu = t90_mu
+        t90.tau = t90_tau
 
         duration = DurationSampler()
 
