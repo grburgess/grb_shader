@@ -1,7 +1,8 @@
 seed: 3645
 generator:
-
-    flavor: bpl_sfr
+    #broken power law (bpl) luminosity distribution
+    #star formation rate (sfr) redshift function
+    flavor: bpl_sfr 
 
     parameters:
         a: 1.
@@ -17,7 +18,11 @@ generator:
         Lmax: 1.e+55
         r_max: 5
 
+#specify from which distribtion ep is sampled (bpl, lognormal or log10normal)
+
 spectral:
+  flavor: log10normal 
+
   ep:
     mu: 300
     tau: 0.5
@@ -25,14 +30,15 @@ spectral:
   alpha:
     mu: -1
     tau: 0.25
+    lower: -1.5
+    upper: 0.1
 
 # specfiy the temporal structure
+# (pulse, constant, triangle)
     
 temporal profile:
   flavor: constant
 
   parameters:
-    log_t90_mu: -1
-    log_t90_tau: 1
-  
-  
+    t90_mu: 1.12
+    t90_tau: 0.9

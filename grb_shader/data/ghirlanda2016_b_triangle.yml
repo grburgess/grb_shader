@@ -1,0 +1,50 @@
+seed: 3645
+generator:
+
+    flavor: bpl_sfr
+
+    parameters:
+      #for bpl redshift distribution
+      r0: 2.8
+      a: 1.
+      rise: 2.4
+      decay: 1.3
+      peak: 3.0
+      #for sfr luminosity distribution
+      Lmin: 1.e+50
+      alpha: -0.47
+      Lbreak: 1.5e+52
+      beta: -1.5
+      Lmax: 1.e+55
+      r_max: 5
+
+#specify from which distribtion ep is sampled (bpl, lognormal or log10normal)
+
+spectral:
+  flavor: bpl
+
+  ep:
+    Epmin: 0.1
+    alpha: -0.24
+    Epbreak: 1100
+    beta: -2.5
+    Epmax: 1.e+5
+
+  alpha:
+    mu: -0.6
+    tau: 0.2
+    lower: -1.5
+    upper: 0.1
+
+# specfiy the temporal structure
+# (pulse, constant, triangle)
+    
+temporal profile:
+  flavor: triangle_cor
+
+  parameters:
+    #E_p-E_iso best fit correlation parameters
+    q_a: 0.053
+    m_a: 0.95
+    tau: 0.2
+

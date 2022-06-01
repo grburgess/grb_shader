@@ -1,0 +1,50 @@
+seed: 3645
+generator:
+
+    flavor: bpl_sfr
+
+    parameters:
+        r0: 2.8
+        a: 1.
+        rise: 1.8
+        decay: 1.7
+        peak: 2.7
+
+        Lmin: 1.e+47
+        alpha: -0.88
+        Lbreak: 2.1e+52
+        beta: -2.2
+        Lmax: 1.e+55
+        r_max: 5
+
+#specify from which distribtion ep is sampled (bpl, lognormal or log10normal)
+
+spectral:
+  flavor: bpl
+
+  ep:
+    Epmin: 0.1
+    alpha: -0.8
+    Epbreak: 1400
+    beta: -2.6
+    Epmax: 1.e+5
+
+  alpha:
+    mu: -0.6
+    tau: 0.2
+    lower: -1.5
+    upper: 0.1
+
+# specfiy the temporal structure
+# (pulse, constant, triangle)
+    
+temporal profile:
+  flavor: pulse
+
+  parameters:
+    t90_mu: -0.8
+    t90_tau: 0.9
+    t_rise_mu: 1.0
+    t_rise_tau: 1.0
+    t_rise_lower: 0.01
+    t_rise_upper: 5.0
