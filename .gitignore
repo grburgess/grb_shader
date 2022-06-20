@@ -133,3 +133,7 @@ dmypy.json
 
 # pop synth data
 *.h5
+
+# fit of t90 distribution
+scripts/fit_t90/stan/**
+!scripts/fit_t90/stan/*.stan
