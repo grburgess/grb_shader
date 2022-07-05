@@ -39,11 +39,12 @@ spectral:
 # (pulse, constant, triangle)
     
 temporal profile:
-  flavor: pulse
+  flavor: pulse_lognormal
 
   parameters:
     t90_mu: -0.8
     t90_tau: 0.9
+    #parameters for pulse structure
     t_rise_mu: 1.0
     t_rise_tau: 1.0
     t_rise_lower: 0.01

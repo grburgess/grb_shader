@@ -39,10 +39,10 @@ spectral:
 # (pulse, constant, triangle)
     
 temporal profile:
-  flavor: constant_lognormal
+  flavor: constant_log10normal
 
   parameters:
-    t90_mu: -2.2 #use ln(T_c) as value (see different definition of log-normal distribution in Eq. 17)
-    t90_tau: 0.90
+    t90_mu: -0.19
+    t90_tau: 0.55
   
   
