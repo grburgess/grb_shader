@@ -6,8 +6,8 @@ popsynth.silence_progress_bars()
 popsynth.silence_warnings()
 
 #path where simulations are stored
-sim_path = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/c/pop"
-param_file = "ghirlanda2016_c_triangle.yml"
+sim_path = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b2/pop"
+param_file = "ghirlanda2016_b_triangle.yml"
 
 play_god(
     param_file=get_path_of_data_file(param_file),

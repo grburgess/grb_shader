@@ -133,11 +133,13 @@ ax.set_xlabel('z')
 
 ```python
 sim_path_b = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b/pop"
+sim_path_b2 = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b2/pop"
 param_file_b = get_path_of_data_file("ghirlanda2016_b_triangle.yml")
 ```
 
 ```python
 pop_b = ps.Population.from_file(f"{sim_path_b}_1714.h5")
+pop_b2 = ps.Population.from_file(f"{sim_path_b2}_1714.h5")
 ```
 
 ### Number of GRBs simulated
@@ -207,6 +209,16 @@ plt.legend()
 plt.xlabel(r'log$_{10}$(E$_\mathrm{peak}$ [keV])')
 ```
 
+```python
+plt.subplots()
+plt.hist(np.log10(pop_b.Eiso),bins=100,alpha=0.7,label='all1')
+plt.hist(np.log10(pop_b.Eiso[pop_b.selection]),bins=100,alpha=0.7,label='observed')
+plt.hist(np.log10(pop_b2.Eiso[pop_b2.selection]),bins=100,alpha=0.7,label='all2')
+plt.hist(np.log10(pop_b2.Eiso),bins=100,alpha=0.7,label='all2')
+plt.legend()
+plt.xlabel(r'log$_{10}$(E$_\mathrm{iso}$ [erg])')
+```
+
 ### Duration - from T = 2*E_iso/L and E_iso from E_iso-E_p correation
 
 ```python
@@ -214,6 +226,8 @@ plt.subplots()
 #print(pop.luminosities_latent)
 plt.hist(np.log10(0.9*pop_b.duration*(1+pop_b.distances)),bins=100,color='C00',alpha=0.7,label='all')
 plt.hist(np.log10(0.9*pop_b.duration[pop_b.selection]*(1+pop_b.distances[pop_b.selection])),bins=100,color='C01',alpha=0.7,label='observed')
+plt.hist(np.log10(0.9*pop_b2.duration*(1+pop_b2.distances)),bins=100,color='C02',alpha=0.7,label='all')
+plt.hist(np.log10(0.9*pop_b2.duration[pop_b2.selection]*(1+pop_b2.distances[pop_b2.selection])),bins=100,color='C03',alpha=0.7,label='observed')
 plt.xlabel(r'log$_{10}$($t_{90}$) [s]')
 plt.legend()
 ```
@@ -229,8 +243,8 @@ ax.set_xlabel('z')
 ## Case c)
 
 ```python
-sim_path_c = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/c/pop"
-param_file_c = get_path_of_data_file("ghirlanda2016_c_triangle.yml")
+sim_path_c = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/c2/pop"
+param_file_c = get_path_of_data_file("ghirlanda2016_c_constant.yml")
 ```
 
 ```python
@@ -304,11 +318,13 @@ plt.legend()
 plt.xlabel(r'log$_{10}$(E$_\mathrm{peak}$ [keV])')
 ```
 
-### Duration - from T = 2*E_iso/L and E_iso from E_iso-E_p correation
+### Duration - from fitted t90 lognormal distribution in Ghirlanda case c
 
 ```python
 plt.subplots()
 #print(pop.luminosities_latent)
+
+# from rest frame to observer frame 
 plt.hist(np.log10(0.9*pop_c.duration*(1+pop_c.distances)),bins=100,alpha=0.7,label='all')
 plt.hist(np.log10(0.9*pop_c.duration[pop_c.selection]*(1+pop_c.distances[pop_c.selection])),bins=100,alpha=0.7,label='observed')
 plt.legend()
@@ -329,28 +345,63 @@ Offene Fragen:
 - Warum unterscheidet sich die Zahl der GRBs, die simuliert wird so stark (Integral über Redshift distribution)
     - Normierungsfaktor r_0c ist 4x größer als in Fall a (Warum aber?)
 
-```python
 
+## Case c) with T90 fit distribution
+
+```python
+sim_path_c2 = "/data/eschoe/grb_shader/sims/ghirlanda_t90fit_hardfluxselec_wospatialselec/pop"
+param_file_c2 = get_path_of_data_file("ghirlanda2016_c_t90fit.yml")
 ```
 
 ```python
+pop_c2 = ps.Population.from_file(f"{sim_path_c2}_1234.h5")
 
 ```
 
-```python
+### Duration - fit to GBM data
 
+```python
+plt.subplots()
+#print(pop.luminosities_latent)
+
+# from rest frame to observer frame 
+plt.hist(np.log10(0.9*pop_c2.duration),bins=100,alpha=0.7,label='all')
+plt.hist(np.log10(0.9*pop_c2.duration[pop_c2.selection]),bins=100,alpha=0.7,label='observed')
+plt.legend()
+plt.xlabel(r'log$_{10}$($t_{90}$) [s]')
 ```
 
 ```python
-
+from popsynth.aux_samplers import BrokenPowerLawAuxSampler
 ```
 
 ```python
-
+s =BrokenPowerLawAuxSampler('test')
+s.xmin=0.1
+s.xmax=1.0e+5
+s.alpha=0.55
+s.beta= -2.5
+s.xbreak=2100
 ```
 
 ```python
+s.true_sampler(size=20000)
+```
 
+```python
+Ep = s.true_values
+
+m_y = 0.69
+q_y =0.068
+```
+
+```python
+L = np.power(10,(1./m_y * ( np.log10(Ep/670.) - q_y))) * 1e52 #erg/s
+```
+
+```python
+plt.subplots()
+plt.hist(np.log10(L),bins=50)
 ```
 
 ```python
