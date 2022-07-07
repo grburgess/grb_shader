@@ -14,3 +14,7 @@ class BaseProfile(object):
     def _construct(self):
 
         pass
+
+    @property
+    def quantities(self) -> List:
+        return self._quantities
