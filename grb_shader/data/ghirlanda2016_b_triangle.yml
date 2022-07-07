@@ -5,7 +5,7 @@ generator:
 
     parameters:
       #for bpl redshift distribution
-      r0: 2.8
+      r0: 1.68
       a: 1.
       rise: 2.4
       decay: 1.3

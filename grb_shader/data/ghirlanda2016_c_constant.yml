@@ -4,7 +4,7 @@ generator:
     flavor: bpl_sfr
 
     parameters:
-      r0: 11.2 #yr^-1
+      r0: 6.72 #yr^-1
       a: 1.
       rise: 2.0
       decay: 2.0
