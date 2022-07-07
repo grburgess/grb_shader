@@ -93,6 +93,10 @@ class RestoredSimulation(object):
 
         return np.array([population.n_detections for population in self._populations])
 
+    @property
+    def n_grbs(self):
+        return np.array([population.n_objects for population in self._populations])
+
     def hist_galaxies(self, n=10, exclude=[]):
 
         fig, ax = plt.subplots()
@@ -106,8 +110,49 @@ class RestoredSimulation(object):
 
         ax.barh(x, counts, width)
 
+        ax.set_xlabel('Number of spatial coincidences')
+
         ax.invert_yaxis()
         ax.set_yticks(x)
         ax.set_yticklabels(names)
 
         plt.tight_layout()
+
+        return fig
+
+    def hist_n_GRBs(self, ax=None, **kwargs):
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+            ax.set_xlabel('Number GRBs')
+
+        else:
+            
+            fig = ax.get_figure()
+
+        ax.hist(self.n_grbs, **kwargs)
+
+        ax.set_xlabel('Number GRBs')
+        plt.tight_layout()
+
+        return fig
+
+    def hist_n_detections(self, ax=None,**kwargs):
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+
+            ax.set_xlabel('Number GRBs')
+
+        else:
+            
+            fig = ax.get_figure()
+
+        ax.hist(self.n_detections, **kwargs)
+
+        plt.tight_layout()
+
+        return fig
+
