@@ -10,9 +10,28 @@ from .profiles.Ep_profiles import Log10normalEp, LognormalEp, BplEp
 from .profiles.temporal_profiles import ConstantProfile_Lognormal, TriangleProfile_Cor, PulseProfile_Lognormal, ConstantProfile_Log10normal
 
 class GRBPop(object):
-    # generate population of GRBs
 
-    def __init__(self, base_population: ps.PopulationSynth, observed_quantities: List[ps.AuxiliarySampler]):
+    def __init__(
+        self, 
+        base_population: ps.PopulationSynth, 
+        observed_quantities: List[ps.AuxiliarySampler], 
+        catalog_selec: bool = False,
+        hard_flux_selec: bool = False,
+        hard_flux_lim: float = 1e-7 #erg cm^-2 s^-1
+        ):
+        """Generate population of GRBs
+
+        :param base_population: base GRB population (ParetoSFR or BPLSFR)
+        :type base_population: ps.PopulationSynth
+        :param observed_quantities: parameters that are sampled
+        :type observed_quantities: List[ps.AuxiliarySampler]
+        :param catalog_selec: if true, select GRBs coinciding with location of LV galaxy, defaults to False
+        :type catalog_selec: bool, optional
+        :param hard_flux_selec: if true, set hard flux limit for detection, defaults to False
+        :type hard_flux_selec: bool, optional
+        :param hard_flux_lim: flux limit, defaults to 1e-7 #ergcm^-2s^-1
+        :type hard_flux_lim: float, optional
+        """
 
         self._population: ps.Population = None
 
@@ -24,19 +43,21 @@ class GRBPop(object):
 
             self._population_gen.add_observed_quantity(o)
 
-        # Add possible hard flux selector from GBM
-        # flux_select = ps.HardFluxSelection()
-        # flux_select.boundary = 1e-7 #erg cm^-2 s^-1
-        # self._population_gen.set_flux_selection(flux_select)
+        if hard_flux_selec == True:
+            # Add possible hard flux selector from GBM for testing
+            flux_select = ps.HardFluxSelection()
+            flux_select.boundary =  hard_flux_lim 
+            self._population_gen.set_flux_selection(flux_select)
+        else: 
+            # We are not going to select on flux
+            # because cosmo GRB will do that for us
+            flux_selector = UnitySelection()
+            self._population_gen.set_flux_selection(flux_selector)
 
-        # We are not going to select on flux
-        # because cosmo GRB will do that for us
-        flux_selector = UnitySelection()
-        self._population_gen.set_flux_selection(flux_selector)
-
-        # build the catalog selections
-        self._catalog_selector: CatalogSelector = CatalogSelector()
-        self._population_gen.add_spatial_selector(self._catalog_selector)
+        if catalog_selec == True:
+            # build the catalog selections
+            self._catalog_selector: CatalogSelector = CatalogSelector()
+            self._population_gen.add_spatial_selector(self._catalog_selector)
 
         # angle_sampler = AngleSampler()
         # angle_sampler.set_angles(self._catalog_selector.catalog.angles)
@@ -89,6 +110,10 @@ class GRBPop(object):
         """
 
         seed = inputs["seed"]
+        catalog_selec = inputs["catalog_selec"]
+        hard_flux_selec = inputs["hard_flux_selec"]
+        hard_flux_lim = inputs["hard_flux_lim"]
+
 
         #look up in dict which is defined below class if constant or pulse
         #set corresponding samplers with defined parameters from yml file
@@ -121,7 +146,7 @@ class GRBPop(object):
         if ep_profile.quantities[0].is_secondary == False:
              observed_quantities.extend(ep_profile.quantities)
 
-        return cls(base_gen, observed_quantities)
+        return cls(base_gen, observed_quantities, catalog_selec, hard_flux_selec, hard_flux_lim)
 
 
 _base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation,

@@ -1,4 +1,4 @@
-from .simulation import play_god, RestoredSimulation
+from .simulation import GBM_GRB_God, RestoredSimulation
 from .catalog import LocalVolume
 from .grb_pop import GRBPop
 
