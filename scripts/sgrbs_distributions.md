@@ -16,13 +16,18 @@ jupyter:
 # Distributions used to generate population of short GRBs
 
 ```python
-from grb_shader import LocalVolume, play_god, GRBPop, RestoredSimulation,get_path_of_data_file
+from grb_shader import LocalVolume, GRBPop, RestoredSimulation,get_path_of_data_file
 from pathlib import Path
 import popsynth as ps
 import matplotlib.pyplot as plt
 import numpy as np
-from grb_shader.samplers import CatalogSelector, DurationSampler, TDecaySampler, EisoSampler, TriangleT90Sampler_Cor
+from grb_shader.samplers import DurationSampler, TDecaySampler, EisoSampler, TriangleT90Sampler_Cor
 %matplotlib widget
+import scipy.stats as stats
+
+import seaborn as sns; #sns.set_theme()
+custom_params = {"axes.spines.right": False, "axes.spines.top": False}
+sns.set_theme(style="ticks", rc=custom_params,font='serif')
 ```
 
 In the following the chosen distributions for the short GRBs are plotted for all 3 cases (a-c) of Ghirlanda (2016).
@@ -132,14 +137,12 @@ ax.set_xlabel('z')
 ## Case b)
 
 ```python
-sim_path_b = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b/pop"
-sim_path_b2 = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b2/pop"
+sim_path_b = "/data/eschoe/grb_shader/sims/ghirlanda_triangle_hardfluxselec_wospatialselec/b2/pop"
 param_file_b = get_path_of_data_file("ghirlanda2016_b_triangle.yml")
 ```
 
 ```python
 pop_b = ps.Population.from_file(f"{sim_path_b}_1714.h5")
-pop_b2 = ps.Population.from_file(f"{sim_path_b2}_1714.h5")
 ```
 
 ### Number of GRBs simulated
@@ -213,8 +216,6 @@ plt.xlabel(r'log$_{10}$(E$_\mathrm{peak}$ [keV])')
 plt.subplots()
 plt.hist(np.log10(pop_b.Eiso),bins=100,alpha=0.7,label='all1')
 plt.hist(np.log10(pop_b.Eiso[pop_b.selection]),bins=100,alpha=0.7,label='observed')
-plt.hist(np.log10(pop_b2.Eiso[pop_b2.selection]),bins=100,alpha=0.7,label='all2')
-plt.hist(np.log10(pop_b2.Eiso),bins=100,alpha=0.7,label='all2')
 plt.legend()
 plt.xlabel(r'log$_{10}$(E$_\mathrm{iso}$ [erg])')
 ```
@@ -226,8 +227,6 @@ plt.subplots()
 #print(pop.luminosities_latent)
 plt.hist(np.log10(0.9*pop_b.duration*(1+pop_b.distances)),bins=100,color='C00',alpha=0.7,label='all')
 plt.hist(np.log10(0.9*pop_b.duration[pop_b.selection]*(1+pop_b.distances[pop_b.selection])),bins=100,color='C01',alpha=0.7,label='observed')
-plt.hist(np.log10(0.9*pop_b2.duration*(1+pop_b2.distances)),bins=100,color='C02',alpha=0.7,label='all')
-plt.hist(np.log10(0.9*pop_b2.duration[pop_b2.selection]*(1+pop_b2.distances[pop_b2.selection])),bins=100,color='C03',alpha=0.7,label='observed')
 plt.xlabel(r'log$_{10}$($t_{90}$) [s]')
 plt.legend()
 ```
@@ -257,6 +256,19 @@ pop_c = ps.Population.from_file(f"{sim_path_c}_1234.h5")
 print(f'Total number GRBs in Universe: \t{pop_c.n_objects}')
 print(f'Number detected GRBs: \t\t{pop_c.n_detections}')
 print(f'Number non-detected GRBs: \t{pop_c.n_non_detections}')
+```
+
+```python
+r_c = RestoredSimulation(sim_path_c)
+```
+
+```python
+#With hard flux selection! - repeat after using cosmogrb
+fig, ax = plt.subplots()
+r_c.hist_n_GRBs(ax=ax,bins=20,label='All simulated',lw=0)
+r_c.hist_n_detections(ax=ax,bins=20,label='Detected',lw=0)
+ax.axvline(718,ls='--',color='black',label='GBM SGRBs') #718 when using best fit for t90 distribution
+ax.legend()
 ```
 
 ### Show graphical model
@@ -340,22 +352,43 @@ ax.set_xlabel('z')
 ```
 
 Offene Fragen:
-- Warum sieht duration distribution nicht so aus wie im Paper?
-    - im Paper: Peak um etwa $T_{\mathrm{obs}}=10^{-0.5}$  s, hier aber bei: $T_{\mathrm{obs}}=10^{0.5}$ s
+- Warum sieht duration distribution für a) und b) nicht so aus wie im Paper?
+    - im Paper: Peak um etwa $T_{\mathrm{obs, p}}=10^{-0.5}$  s, hier aber bei: $T_{\mathrm{obs, p}}=10^{0.5}$ s
 - Warum unterscheidet sich die Zahl der GRBs, die simuliert wird so stark (Integral über Redshift distribution)
-    - Normierungsfaktor r_0c ist 4x größer als in Fall a (Warum aber?)
+    - Normierungsfaktor r_0c ist 4x größer als in Fall a
 
 
 ## Case c) with T90 fit distribution
 
 ```python
-sim_path_c2 = "/data/eschoe/grb_shader/sims/ghirlanda_t90fit_hardfluxselec_wospatialselec/pop"
+sim_path_c2 = "/data/eschoe/grb_shader/sims/ghirlanda_t90fit_hardfluxselec_wospatialselec/3/pop"
 param_file_c2 = get_path_of_data_file("ghirlanda2016_c_t90fit.yml")
 ```
 
 ```python
-pop_c2 = ps.Population.from_file(f"{sim_path_c2}_1234.h5")
+pop_c2 = ps.Population.from_file(f"{sim_path_c2}_1254.h5")
+```
 
+### Number simulated GRBs with hard flux selection
+
+```python
+print(f'Total number GRBs in Universe: \t{pop_c2.n_objects}')
+#print(f'Integral{pop_2.}')
+print(f'Number detected GRBs: \t\t{pop_c2.n_detections}')
+print(f'Number non-detected GRBs: \t{pop_c2.n_non_detections}')
+```
+
+```python
+r_c = RestoredSimulation(sim_path_c2)
+```
+
+```python
+#With hard flux selection! - repeat after using cosmogrb
+fig, ax = plt.subplots()
+r_c.hist_n_GRBs(ax=ax,bins=20,label='All simulated',lw=0)
+r_c.hist_n_detections(ax=ax,bins=20,label='Detected',lw=0)
+ax.axvline(718,ls='--',color='black',label='GBM SGRBs') #718 when using best fit for t90 distribution
+ax.legend()
 ```
 
 ### Duration - fit to GBM data
@@ -365,45 +398,10 @@ plt.subplots()
 #print(pop.luminosities_latent)
 
 # from rest frame to observer frame 
-plt.hist(np.log10(0.9*pop_c2.duration),bins=100,alpha=0.7,label='all')
-plt.hist(np.log10(0.9*pop_c2.duration[pop_c2.selection]),bins=100,alpha=0.7,label='observed')
+plt.hist(np.log10(0.9*pop_c2.duration),bins=100,alpha=0.4,label='all',density=True)
+plt.hist(np.log10(0.9*pop_c2.duration[pop_c2.selection]),bins=100,alpha=0.4,label='observed',density=True)
+t_arr = np.linspace(-2,3,1000)
+plt.plot(t_arr, stats.norm.pdf(t_arr,-0.196573, 0.541693),label='SGRBs Median Best Fit',ls='--',color='black')
 plt.legend()
 plt.xlabel(r'log$_{10}$($t_{90}$) [s]')
-```
-
-```python
-from popsynth.aux_samplers import BrokenPowerLawAuxSampler
-```
-
-```python
-s =BrokenPowerLawAuxSampler('test')
-s.xmin=0.1
-s.xmax=1.0e+5
-s.alpha=0.55
-s.beta= -2.5
-s.xbreak=2100
-```
-
-```python
-s.true_sampler(size=20000)
-```
-
-```python
-Ep = s.true_values
-
-m_y = 0.69
-q_y =0.068
-```
-
-```python
-L = np.power(10,(1./m_y * ( np.log10(Ep/670.) - q_y))) * 1e52 #erg/s
-```
-
-```python
-plt.subplots()
-plt.hist(np.log10(L),bins=50)
-```
-
-```python
-
 ```
