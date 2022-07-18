@@ -137,3 +137,9 @@ dmypy.json
 # fit of t90 distribution
 scripts/fit_t90/stan/**
 !scripts/fit_t90/stan/*.stan
+
+# Dask worker space
+dask-worker-space/
+
+#vscode
+.vscode/
