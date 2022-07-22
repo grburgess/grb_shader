@@ -1,4 +1,4 @@
-from .simulation import GRBPop_God, Restored_GRBPops
+from .simulation import God_Multiverse
 from .catalog import LocalVolume
 from .grb_pop import GRBPop
 
