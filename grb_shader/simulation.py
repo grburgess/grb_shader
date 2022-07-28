@@ -23,8 +23,12 @@ from cosmogrb.instruments.gbm import GBM_CPL_Universe, GBM_CPL_Constant_Universe
 from cosmogrb.universe.survey import Survey
 from cosmogrb.instruments.gbm.gbm_trigger import GBMTrigger
 
+#TODO: write summary summary.h5 file containing final detected GRB file directories for every universe (throw out universes that are not containing GRBs)
+#TODO: Use files in summary file to analyse GRBs - New Restores simulation class?
+#TODO: for pops without catalog_selection, apply internal parallelization when computing GBM GRB data --> Done but too high memory usage
+#TODO: add plotting functions from underneath
 
-class God_Multiverse(object):
+class GodMultiverse(object):
 
     def __init__(
         self,
@@ -136,7 +140,7 @@ class God_Multiverse(object):
 
         else:
             #serial
-            sims = [sim_one_population(i) for i in range(self._n_universes)]
+            [sim_one_population(i) for i in tqdm(range(self._n_universes), 'Simulate populations')]
 
         self._population_files = list(self._pops_dir.glob(f"{self._pops_base_file_name}*.h5"))
 
@@ -248,7 +252,7 @@ class God_Multiverse(object):
             universe.go(client)
             #save as non-processed survey
             universe.save(str(self._surveys_path / f'{surveys_base_file_name}{save_path_stem_i}.h5'))
-            return i
+            #del universe
 
         logger.info('Go Universes')
         
@@ -257,7 +261,8 @@ class God_Multiverse(object):
             if internal_parallelization:
                 #compute GRBs in parallel within one universe
                 logger.info('Use internal parallelization')
-                sims = [sim_one_universe(i,client) for i in range(self._n_universes)]
+                for i in tqdm(range(self._n_universes),desc='Go universe - internally parallel'):
+                    sim_one_universe(i=i,client=client)
             else:
                 logger.info('Use external parallelization')
                 iteration = [i for i in range(0,self._n_universes)]
@@ -271,7 +276,7 @@ class God_Multiverse(object):
         else:
             #serial
             logger.info('Use no parallelization')
-            sims = [sim_one_universe(i) for i in range(self._n_universes)]
+            sims = [sim_one_universe(i) for i in tqdm(range(self._n_universes),desc='Go universe - serial')]
 
         self._survey_files = list(self._surveys_path.glob(f"{self._surveys_base_file_name}*.h5"))
 
@@ -295,9 +300,8 @@ class God_Multiverse(object):
         surveys_path: str,
         surveys_base_file_name: str = 'survey'
         ):
-        self._surveys_path = surveys_path
+        self._surveys_path = Path(surveys_path)
         self._surveys_base_file_name = surveys_base_file_name
-        self._survey_files = list()
 
         self._survey_files = list(self._surveys_path.glob(f"{self._surveys_base_file_name}*.h5"))
 
@@ -313,18 +317,23 @@ class God_Multiverse(object):
         threshold_trigger: float = 4.5,
         internal_parallelization: bool = False
     ):
-        def process_one_survey(i,client=None):
+
+        logger.info('Process surveys')
+
+        def process_one_survey(i,client=None,serial=True):
             survey = Survey.from_file(self.survey_files[i])
-            survey.process(GBMTrigger,threshold=threshold_trigger,client=client)
+            survey.process(GBMTrigger,threshold=threshold_trigger,client=client,serial=serial)
             survey.write(self.survey_files[i])
+            del survey
         
-        logger.info('Process survey')
 
         if client is not None:
 
             if internal_parallelization:
                 logger.info('Use internal parallelization')
-                sims = [process_one_survey(i,client=client) for i in range(self._n_universes)]
+
+                for i in tqdm(range(self._n_universes),desc='Process Surveys - internalls parallel'):
+                    process_one_survey(i=i,client=client,serial=False)
             
             else:
                 logger.info('Use external parallelization')
@@ -339,9 +348,27 @@ class God_Multiverse(object):
         else:
             logger.info('No parallelization')
 
-            sims = [process_one_survey(i) for i in range(self._n_universes)]
+            sims = [process_one_survey(i) for i in tqdm(range(self._n_universes),desc='Process Surveys - serial')]
 
         self._surveys_processed = True 
+
+    def process_surveys(
+        self,
+        surveys_path: str,
+        client: Client = None,
+        surveys_base_file_name: str = 'survey',
+        threshold_trigger: float = 4.5,
+        internal_parallelization: bool = False
+    ):
+        self._load_surveys(
+            surveys_path=surveys_path, 
+            surveys_base_file_name= surveys_base_file_name
+        )
+
+        self._process_surveys(
+            client=client,
+            threshold_trigger=threshold_trigger,
+            internal_parallelization=internal_parallelization)
 
     def _write_summary_file(
         self,
@@ -388,288 +415,230 @@ class God_Multiverse(object):
             threshold_trigger=threshold_trigger,
             internal_parallelization=internal_parallelization)
 
-#if n_cpus > n_sims: ?
+class RestoredMultiverse(object):
+
+    def __init__(
+        self,
+        path_survey_files: str,
+        survey_base_file_name: str = 'survey',
+        pop_base_file_name: str = 'pop',
+        path_pops_files: str = None,
+    ):
+        self._survey_path = Path(path_survey_files)
+
+        self._surveys = []
+        self._survey_files = sorted(list(self._survey_path.glob(f"{survey_base_file_name}*.h5")))
+        if len(self._survey_files) == 0:
+            logger.warning('No Survey files found')
+
+        self._n_hit_grbs = np.zeros(len(self.survey_files))
+
+        for i, f in enumerate(tqdm(self.survey_files, desc="Loading surveys")):
+            survey = Survey.from_file(f)
+            self._surveys.append(survey)
+            self._n_hit_grbs[i] = survey.n_grbs
+
+        if path_pops_files is None:
+            self._pops_path = self._survey_path
+        else:
+            self._pops_path = path_pops_files
+
+        self._populations = []
+        self._population_files = sorted(list(self._pops_path.glob(f"{pop_base_file_name}*.h5")))
+
+
+        #There has to be always same number of population and survey files
+        if len(self._survey_files) > 0:
+            assert len(self._population_files) == len(self._survey_files)
+
+        self._n_sim_grbs = np.zeros(len(self.population_files))
+        self._n_detected_grbs = np.zeros(len(self.population_files))
+
+        for i, f in enumerate(tqdm(self._population_files, desc="Loading populations")):
+            pop = Population.from_file(f)
+            self._populations.append(pop)
+            self._n_sim_grbs[i] = pop.n_objects
+            self._n_detected_grbs[i] = pop.n_detections
+
+        self._catalog = LocalVolume.from_lv_catalog()
+
+        self._galaxies_were_counted = False
+
+    def _count_galaxies(self):
+
+        self._galaxynames_hit = collections.Counter()
+        self._galaxynames_hit_and_detected = collections.Counter()
+
+        for i, pop in enumerate(tqdm(self._populations, desc="counting galaxies")):
+            survey = self._surveys[i]
+            self._catalog.read_population(pop)
+
+            #Number of selected galaxies has to be same as number of simulated GRBs
+            assert len(self._catalog.selected_galaxies) == survey.n_grbs
+
+            for i,galaxy in enumerate(self._catalog.selected_galaxies):
+                if survey.mask_detected_grbs[i]:
+                    self._galaxynames_hit_and_detected.update([galaxy.name])
+
+                self._galaxynames_hit.update([galaxy.name])
+
+        self._galaxies_were_counted = True
+
+    @property
+    def n_hit_grbs(self):
+        # if catalog selection: = number of GRBs that hit a galaxy
+        # without: same as n_sim_grbs
+        return self._n_hit_grbs
+
+    @property
+    def n_detected_grbs(self):
+        # number of detected GRBs 
+        # (only GRBs that hit galaxy if catalog selection )
+        return self._n_detected_grbs
+
+    @property
+    def n_sim_grbs(self):
+        # total number of GRBs in the population (from integrated spatial distribution)
+        return self._n_sim_grbs
+
+    @property
+    def fractions_det(self):
+        #fraction of detected GRBs 
+        return self.n_detected_grbs/self.n_sim_grbs
+
+    @property
+    def fractions_det(self):
+        #fraction of GRBs that hit galaxies
+        return self.n_hit_grbs/self.n_sim_grbs
+
+    @property
+    def populations(self) -> List[Path]:
+        return self._populations
+
+    @property
+    def survey_files(self) -> List[Path]:
+        return self._survey_files
+
+    @property
+    def population_files(self) -> List[Population]:
+        return self._population_files
+
+    def hist_galaxies(self, n=10, width=0.6,exclude=[],ax=None,**kwargs):
+        #histogram the n most often hit galaxies in all simulated universes
+
+        if not self._galaxies_were_counted:
+            self._count_galaxies()
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+
+            ax.set_xlabel('Number of spatial coincidences')
+
+        else:
+            
+            fig = ax.get_figure()
+        
+        hits = self._galaxynames_hit.most_common(n)
+        names = [x[0] for x in hits if x[0] not in exclude]
+        counts = [x[1] for x in hits if x[0] not in exclude]
+
+        x = np.arange(len(names))  # the label locations
+
+        ax.barh(x, counts, width,**kwargs)
+
+        ax.invert_yaxis()
+        ax.set_yticks(x)
+        ax.set_yticklabels(names)
+        plt.tight_layout()
+        return fig
     
-#TODO: test
-#TODO: write pytests
-#TODO: write summary summary.h5 file containing final detected GRB file directories for every universe (throw out universes that are not containing GRBs)
-#TODO: Use files in summary file to analyse GRBs - New Restores simulation class?
-#TODO: for pops without catalog_selection, apply internal parallelization when computing GBM GRB data
-#TODO: Add condition if popsynth selected no GRBs
-#TODO: add plotting functions from underneath
+    def hist_galaxies_detected(self, n=10, exclude=[],width=0.6,ax=None,**kwargs):
+        #histogram only detected GRBs
+        #histogram the n most often hit galaxies in all simulated universes
 
-    
+        if not self._galaxies_were_counted:
+            self._count_galaxies()
 
+        if ax is None:
 
-#class Restored_GRBPops(object):
-#
-#    def __init__(
-#        self, 
-#        pop_sim_path: str,
-#        constant_profile: bool,
-#        pop_base_file_name: str = 'pop',
-#        universe_sim_path: str = None
-#        ):
-#
-#        # path of populations
-#        self._pop_sim_path = Path(pop_sim_path)
-#
-#        # list of all populations
-#        self._populations = []
-#
-#        self._pop_base_file_name = pop_base_file_name
-#
-#        if self._pop_sim_path.is_dir(): 
-#
-#            self._pop_sim_folder = self._pop_sim_path
-#            # list of all population files
-#            self._population_files = list(self._pop_sim_folder.glob(f"{self._pop_base_file_name}*.h5"))
-#
-#        else:
-#            #e.g. if str pop_sim_path includes base file name 
-#            self._pop_sim_folder = self._pop_sim_path.parent
-#            # list of all population files
-#            self._population_files = list(self._pop_sim_folder.glob(f"{self._pop_sim_path.name}*.h5"))
-#
-#        self._n_sims = len(self._population_files)
-#
-#        if self._n_sims == 0:
-#
-#            raise Exception("No population files found in specified path. Check base file name of population files. If not 'pop', specify pop_sim_path, e.g. dir_to_pops/pops_base_file_name")
-#
-#        self._universe_sim_path = universe_sim_path
-#        
-#        self._isread = False
-#
-#        #self._catalog = LocalVolume.from_lv_catalog()
-#
-#        self._universes = []
-#
-#        self._constant_profile = constant_profile
-#
-#    def play_god_universes(
-#        self,
-#        save_path: str = None,
-#        universe_base_file_name: str = 'universe',
-#        client: Client = None
-#    ):
-#
-#        if save_path is None:
-#            # as default, save simulated GRB files in folder containing population files
-#            self._universe_sim_path = self._pop_sim_folder
-#        else:
-#            # if save_path was specified, use this folder
-#            self._universe_sim_path = Path(save_path)
-#            # if path does not exist yet, create it
-#            self._universe_sim_path.mkdir(parents=True, exist_ok=True)
-#
-#        if self._constant_profile == True:
-#
-#            Universe_class = GBM_CPL_Constant_Universe
-#
-#        else:
-#
-#            Universe_class = GBM_CPL_Universe
-#        
-#        def sim_one_universe(i):
-#
-#            pop_path_i = self._population_files[i]
-#            #print(pop_path_i)
-#            #return pop_path_i
-#            # take population stem name as name for folder of simulated GRBs
-#            save_path_stem_i = pop_path_i.stem.strip(self._pop_base_file_name)
-#            save_path_i = self._universe_sim_path / save_path_stem_i
-#            #create new folder if non-existing yet
-#            save_path_i.mkdir(parents=True, exist_ok=True)
-#
-#            universe = Universe_class(self._population_files[i],save_path=save_path_i)
-#            universe.go()
-#            universe.save(str(self._universe_sim_path / f'{universe_base_file_name}{save_path_stem_i}.h5'))
-#            return i
-#        
-#        if client is not None:
-#            iteration = [i for i in range(0,self._n_sims)]
-#
-#            futures = client.map(sim_one_universe, iteration)
-#            res = client.gather(futures)
-#
-#            del futures
-#            del res
-#
-#        else:
-#
-#            sims = [sim_one_universe(i) for i in range(self._n_sims)]
-#
-#
-#    def play_god_surveys(
-#        self,
-#        universes_path: str = None,
-#        save_path: str = None,
-#        universe_base_file_name: str = 'universe',
-#        client: Client = None
-#    ):
-#        if universes_path is None:
-#            universes_path = self._pop_sim_folder
-#        
-#        universe_files = list(universes_path.glob(f"{universe_base_file_name}*.h5"))
-#
-#        if len(universe_files) == 0:
-#
-#            raise Exception("No universe files found in specified path. Check also base file name of universe files. If not 'universe', specify universe_base_file_name")
-#
-#        if save_path is None:
-#            # as default, save simulated survey files in folder containing population files
-#            save_p = self._pop_sim_folder
-#        else:
-#            # if save_path was specified, use this folder
-#            save_p = Path(save_path)
-#            save_p.mkdir(parents=True, exist_ok=True)
-#
-#        def sim_one_survey(i):
-#
-#            universe_file_i = Path(universe_files[i])
-#
-#            survey = Survey.from_file(universe_file_i)
-#            survey.process(GBMTrigger, threshold=4.5)
-#            survey.write(f"survey{universe_file_i.stem.strip(universe_base_file_name)}.h5")
-#            return i
-#
-#        if client is not None:
-#            print('Hello')
-#            iteration = [i for i in range(0,self._n_sims)]
-#
-#            futures = client.map(sim_one_survey, iteration)
-#            res = client.gather(futures)
-#
-#            del futures
-#            del res
-#
-#        else:
-#
-#            sims = [sim_one_survey(i) for i in range(self._n_sims)]
-#
-#    def _read_pops(self):
-#
-#        for f in tqdm(self._population_files, desc="loading populations"):
-#
-#            self._populations.append(Population.from_file(f))
-#
-#        self._isread = True
-#
-#    def _count_galaxies(self):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        self._hit_galaxy_names = collections.Counter()
-#
-#        for pop in tqdm(self._populations, desc="counting galaxies"):
-#            self._catalog.read_population(pop)
-#            for galaxy in self._catalog.selected_galaxies:
-#
-#                self._hit_galaxy_names.update([galaxy.name])
-#
-#    @property
-#    def populations(self) -> List[Population]:
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        return self._populations
-#
-#    @property
-#    def population_files(self) -> List[Population]:
-#
-#        return self._population_files
-#    
-#    @property
-#    def fractions(self):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        return np.array([population.n_detections/population.n_objects for population in self._populations])
-#
-#    @property
-#    def n_detections(self):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        return np.array([population.n_detections for population in self._populations])
-#
-#    @property
-#    def n_grbs(self):
-#        
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        return np.array([population.n_objects for population in self._populations])
-#
-#    def hist_galaxies(self, n=10, exclude=[]):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        fig, ax = plt.subplots()
-#
-#        hits = self._hit_galaxy_names.most_common(n)
-#        names = [x[0] for x in hits if x[0] not in exclude]
-#        counts = [x[1] for x in hits if x[0] not in exclude]
-#
-#        x = np.arange(len(names))  # the label locations
-#        width = 0.35  # the width of the bars
-#
-#        ax.barh(x, counts, width)
-#
-#        ax.set_xlabel('Number of spatial coincidences')
-#
-#        ax.invert_yaxis()
-#        ax.set_yticks(x)
-#        ax.set_yticklabels(names)
-#
-#        plt.tight_layout()
-#
-#        return fig
-#
-#    def hist_n_GRBs(self, ax=None, **kwargs):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        if ax is None:
-#
-#            fig, ax = plt.subplots()
-#            ax.set_xlabel('Number GRBs')
-#
-#        else:
-#            
-#            fig = ax.get_figure()
-#
-#        ax.hist(self.n_grbs, **kwargs)
-#
-#        ax.set_xlabel('Number GRBs')
-#        plt.tight_layout()
-#
-#        return fig
-#
-#    def hist_n_detections(self, ax=None,**kwargs):
-#
-#        if self._isread == False:
-#            self._read_pops()
-#
-#        if ax is None:
-#
-#            fig, ax = plt.subplots()
-#
-#            ax.set_xlabel('Number GRBs')
-#
-#        else:
-#            
-#            fig = ax.get_figure()
-#
-#        ax.hist(self.n_detections, **kwargs)
-#
-#        plt.tight_layout()
-#
-#        return fig
+            fig, ax = plt.subplots()
+            ax.set_xlabel('Number of spatial coincidences')
+
+        else:
+            
+            fig = ax.get_figure()
+        
+        hits = self._galaxynames_hit_and_detected.most_common(n)
+        names = [x[0] for x in hits if x[0] not in exclude]
+        counts = [x[1] for x in hits if x[0] not in exclude]
+
+        x = np.arange(len(names))  # the label locations
+
+        ax.barh(x, counts,width,**kwargs)
+        
+        ax.set_xlabel('Number of spatial coincidences')
+        ax.invert_yaxis()
+        ax.set_yticks(x)
+        ax.set_yticklabels(names)
+        plt.tight_layout()
+
+        return fig
+
+    def hist_n_sim_grbs(self, ax=None, **kwargs):
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+            ax.set_xlabel('Number GRBs')
+
+        else:
+            
+            fig = ax.get_figure()
+        
+        labels, counts = np.unique(self.n_sim_grbs, return_counts=True)
+        ax.bar(labels,counts,**kwargs)
+
+        ax.set_xlabel('Number GRBs')
+        plt.tight_layout()
+
+        return fig
+
+    def hist_n_det_grbs(self, ax=None,width=0.55,**kwargs):
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+
+            ax.set_xlabel('Number GRBs')
+
+        else:
+            
+            fig = ax.get_figure()
+
+        labels, counts = np.unique(self.n_detected_grbs, return_counts=True)
+        ax.bar(labels,counts,width,**kwargs)
+
+        plt.tight_layout()
+
+        return fig
+
+    def hist_n_hit_grbs(self, ax=None,**kwargs):
+
+        if ax is None:
+
+            fig, ax = plt.subplots()
+            
+            ax.set_xlabel('Number GRBs')
+
+        else:
+            
+            fig = ax.get_figure()
+
+        labels, counts = np.unique(self.n_hit_grbs, return_counts=True)
+        ax.bar(labels,counts,**kwargs)
+
+        plt.tight_layout()
+
+        return fig
+   
