@@ -33,7 +33,7 @@ spectral:
     mu: -0.6
     tau: 0.2
     lower: -1.5
-    upper: 0.1
+    upper: 0
 
 # specfiy the temporal structure
 # (pulse, constant, triangle)
