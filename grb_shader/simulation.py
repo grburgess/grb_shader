@@ -19,14 +19,14 @@ from .utils.logging import setup_log
 
 logger = setup_log(__name__)
 
+import cosmogrb
 from cosmogrb.instruments.gbm import GBM_CPL_Universe, GBM_CPL_Constant_Universe
 from cosmogrb.universe.survey import Survey
 from cosmogrb.instruments.gbm.gbm_trigger import GBMTrigger
 
 #TODO: write summary summary.h5 file containing final detected GRB file directories for every universe (throw out universes that are not containing GRBs)
-#TODO: Use files in summary file to analyse GRBs - New Restores simulation class?
-#TODO: for pops without catalog_selection, apply internal parallelization when computing GBM GRB data --> Done but too high memory usage
-#TODO: add plotting functions from underneath
+#TODO: Use files in summary file to analyse GRBs - add as from_summary_file function to RestoredMultiverse
+#TODO: for pops without catalog_selection, apply internal parallelization when computing GBM GRB data --> Done but too high memory usage --> split into sub populations
 
 class GodMultiverse(object):
 
@@ -324,6 +324,14 @@ class GodMultiverse(object):
             survey = Survey.from_file(self.survey_files[i])
             survey.process(GBMTrigger,threshold=threshold_trigger,client=client,serial=serial)
             survey.write(self.survey_files[i])
+
+            #convert detected GRBs to HDF5 format to allow import to threeml
+            grb_file = Path(survey.files_detected_grbs[0])
+            destination = grb_file.parent
+
+            for i in tqdm(range(len(survey.files_detected_grbs)),desc="Saving to fits"):
+                cosmogrb.grbsave_to_gbm_fits(survey.files_detected_grbs[i],destination=destination)
+
             del survey
         
 
@@ -375,6 +383,54 @@ class GodMultiverse(object):
         ):
             #TODO
             pass
+    
+    def go_pops(
+        self,
+        param_file: str,
+        pops_dir: str,
+        constant_temporal_profile: bool,
+        pop_base_file_name: str = "pop",
+        client: Client = None,
+        seed: int = 1234,
+        catalog_selec: bool = False,
+        hard_flux_selec: bool = False,
+        hard_flux_lim: float = 1e-7 #erg cm^-2 s^-1
+    ):
+        self._go_pops(
+            param_file=param_file,
+            pops_dir=pops_dir,
+            constant_temporal_profile=constant_temporal_profile,
+            base_file_name=pop_base_file_name,
+            client=client,
+            seed=seed,
+            catalog_selec=catalog_selec,
+            hard_flux_selec=hard_flux_selec,
+            hard_flux_lim=hard_flux_lim
+            )
+
+    def go_universes(
+        self,
+        pops_dir: str,
+        constant_temporal_profile: bool,
+        surveys_path = None,
+        surveys_base_file_name: str = 'survey',
+        client: Client = None,
+        internal_parallelization: bool = False,
+        pop_base_file_name: str = "pop",
+
+    ):
+        self._load_pops(
+        pop_sim_path=pops_dir,
+        constant_temporal_profile= constant_temporal_profile,
+        pop_base_file_name=pop_base_file_name,
+        )
+
+        self._go_universes(
+            surveys_path=surveys_path,
+            surveys_base_file_name=surveys_base_file_name,
+            client=client,
+            internal_parallelization=internal_parallelization
+            )
 
     def go(
         self,
@@ -404,16 +460,21 @@ class GodMultiverse(object):
             hard_flux_selec=hard_flux_selec,
             hard_flux_lim=hard_flux_lim
             )
+
         self._go_universes(
             surveys_path=surveys_path,
             surveys_base_file_name=surveys_base_file_name,
             client=client,
             internal_parallelization=internal_parallelization
             )
-        self._process_surveys(
-            client=client,
-            threshold_trigger=threshold_trigger,
-            internal_parallelization=internal_parallelization)
+
+        if hard_flux_selec == False:
+            self._process_surveys(
+                client=client,
+                threshold_trigger=threshold_trigger,
+                internal_parallelization=internal_parallelization)
+        else:
+            logger.info('Do not use GBM trigger as hard flux selection was already applied as alternative')
 
 class RestoredMultiverse(object):
 
@@ -460,6 +521,7 @@ class RestoredMultiverse(object):
             self._n_sim_grbs[i] = pop.n_objects
             self._n_detected_grbs[i] = pop.n_detections
 
+        #load local volume galaxies catalog
         self._catalog = LocalVolume.from_lv_catalog()
 
         self._galaxies_were_counted = False
@@ -483,6 +545,10 @@ class RestoredMultiverse(object):
                 self._galaxynames_hit.update([galaxy.name])
 
         self._galaxies_were_counted = True
+
+    @property
+    def n_universes(self):
+        return len(self._survey_files)
 
     @property
     def n_hit_grbs(self):
