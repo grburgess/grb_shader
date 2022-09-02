@@ -7,7 +7,7 @@ import yaml
 from popsynth.selection_probability import UnitySelection
 from .catalog_selector import CatalogSelector
 from .profiles.Ep_profiles import Log10normalEp, LognormalEp, BplEp
-from .profiles.temporal_profiles import ConstantProfile_Lognormal, TriangleProfile_Cor, PulseProfile_Lognormal, ConstantProfile_Log10normal
+from .profiles.temporal_profiles import *
 
 class GRBPop(object):
 
@@ -158,5 +158,10 @@ _ep_lookup = dict(log10normal=Log10normalEp,
 
 _temporal_lookup = dict(constant_lognormal=ConstantProfile_Lognormal,
                         constant_log10normal=ConstantProfile_Log10normal,
+                        constant_lognormal_trunc=ConstantProfile_Lognormal_Trunc,
+                        constant_log10normal_trunc=ConstantProfile_Log10normal_Trunc,
                         pulse_lognormal=PulseProfile_Lognormal,
+                        pulse_log10normal=PulseProfile_Log10normal,
+                        pulse_lognormal_trunc=PulseProfile_Lognormal_Trunc,
+                        pulse_log10normal_trunc=PulseProfile_Log10normal_Trunc,
                         triangle_cor=TriangleProfile_Cor)
