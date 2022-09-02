@@ -143,3 +143,6 @@ dask-worker-space/
 
 #vscode
 .vscode/
+
+#threeML fits
+fit*
