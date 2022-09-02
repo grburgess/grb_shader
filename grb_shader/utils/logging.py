@@ -2,6 +2,7 @@ import logging
 
 # create console handler and set level that is printed on console
 grb_shader_console_log_handler = logging.StreamHandler()
+#show up to debug messages
 grb_shader_console_log_handler.setLevel(logging.INFO)
 
 # create formatter
