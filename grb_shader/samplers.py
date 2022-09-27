@@ -1,14 +1,8 @@
 from typing import List, Optional, Union
 
-import ligo.skymap.plot
 import numpy as np
 import scipy.stats as stats
 import popsynth as ps
-from matplotlib import pyplot as plt
-from matplotlib.patches import Ellipse
-from popsynth.selection_probability import SpatialSelection
-
-from .catalog import Galaxy, LocalVolume
 
 
 class TDecaySampler(ps.AuxiliarySampler):
