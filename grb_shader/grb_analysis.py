@@ -124,6 +124,18 @@ class GRBAnalysis_constant(object):
     def K_exp(self):
         return self._K_exp
 
+    def _E_iso(self,K,Ep,alpha,lower=1,upper=1e4):
+        
+        E_grid = np.logspace(np.log10(lower),np.log10(upper))
+
+        f = Cutoff_powerlaw_Ep()
+        f.K = K
+        f.piv = 1
+        f.index = alpha
+        f.xp = Ep
+
+
+
     def _find_closest_dets(self):
         # find three closest NaI and one closest BGO detector
 
@@ -185,9 +197,9 @@ class GRBAnalysis_constant(object):
             ax = axes[row][col]
 
             lightcurve =v['lightcurve']
-            lightcurve.display_lightcurve(dt=.1, tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1,color='#25C68C',label='Source+Background')
+            lightcurve.display_lightcurve(dt=.1, tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1,color='C00',label='Source+Background')
             #lightcurve.display_source(dt=.5,ax=ax,lw=1,color="#A363DE",label='Source')
-            lightcurve.display_background(dt=.1,tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1, color="#2C342E",label='Background')
+            lightcurve.display_background(dt=.1,tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1, color="C01",label='Background')
             ax.set_xlim(self._tmin, self._tmax)
             ax.set_title(k,size=8)
             ax.set_xlabel('')
@@ -246,8 +258,8 @@ class GRBAnalysis_constant(object):
             lightcurve = v['lightcurve']
             
             lightcurve.display_count_spectrum(tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1,color='#25C68C')
-            lightcurve.display_count_spectrum_source(tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1,color="#A363DE",label='Source')
-            lightcurve.display_count_spectrum_background(tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1, color="#2C342E",label='Background')
+            lightcurve.display_count_spectrum_source(tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1,color="C00",label='Source')
+            lightcurve.display_count_spectrum_background(tmin=self._tmin,tmax=self._tmax,ax=ax,lw=1, color="C01",label='Background')
             #ax.set_xlim(10, 30)
             ax.set_xlim(8,40000)
 
@@ -320,8 +332,10 @@ class GRBAnalysis_constant(object):
                 poly_order = 0
                 )
 
+            tte.set_background_interval('-10--5',f'10-30')
+
             #use bayesian block method to find time bins
-            tte.create_time_bins(start=-10.,stop=40,method='bayesblocks',p0=.001, use_background=False)
+            tte.create_time_bins(start=-10.,stop=30,method='bayesblocks',p0=.05, use_background=True)
 
             # for constant light curve, exactly three time bins should be found 
             # select first and last interval for polynomial background fit
@@ -329,6 +343,9 @@ class GRBAnalysis_constant(object):
             if len(tte.bins) == 3:
                 tte.set_active_time_interval(f'{tte.bins.start_times[1]}-{tte.bins.stop_times[1]}')
                 tte.set_background_interval(f'{tte.bins.start_times[0]}-{tte.bins.stop_times[0]}',f'{tte.bins.start_times[2]}-{tte.bins.stop_times[2]}')
+
+            else: 
+                raise Exception('More than 3 blocks found,choose bin with highest count rate')
 
             fluence_plugin = tte.to_spectrumlike()
 
@@ -350,7 +367,7 @@ class GRBAnalysis_constant(object):
 
             if plot_lightcurve:
 
-                tte.view_lightcurve()
+                tte.view_lightcurve(use_binner=True)
 
                 if savefigs:
 
@@ -374,7 +391,7 @@ class GRBAnalysis_constant(object):
 
         #set priors
         model.ps.spectrum.main.Cutoff_powerlaw_Ep.K.prior = Log_normal(
-            mu=-4, sigma=1
+            mu=-1.5, sigma=1.5
         )
         model.ps.spectrum.main.Cutoff_powerlaw_Ep.index.prior =Truncated_gaussian(
             lower_bound=-3, upper_bound=0.5, mu=-0.5, sigma=0.3
