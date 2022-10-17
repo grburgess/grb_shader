@@ -17,13 +17,35 @@ class TDecaySampler(ps.AuxiliarySampler):
 
     def true_sampler(self, size):
 
-        t90 = 10 ** self._secondary_samplers["t90"].true_values
-        trise = self._secondary_samplers["trise"].true_values
+        t90 = self._secondary_samplers["t90"].true_values
+        
+        self._true_values = np.random.uniform(low=t90/10.,high=t90/3.,size=size)
+
+class TRiseSampler(ps.AuxiliarySampler):
+    _auxiliary_sampler_name = "TRiseSampler"
+    def __init__(self):
+        """
+        samples the rise time of the pulse as function of t90 
+        and 
+
+        from Equation (3) from Hakkila (2018), 
+        rewritten for tau1
+
+        Assume that w is same as t90
+        Note: w and t90 are proportional to each 
+        other but are not same!
+        """
+
+        #call super class's __init__ method
+        super(TRiseSampler, self).__init__(name="trise", observed=False)
+
+    def true_sampler(self, size):
+
+        t90 = self._secondary_samplers["t90"].true_values
+        tdecay = self._secondary_samplers["tdecay"].true_values
 
         self._true_values = (
-            1.0 / 50.0 * (10 * t90 + trise + np.sqrt(trise)
-                          * np.sqrt(20 * t90 + trise))
-        )
+            (1./12. * np.sqrt(tdecay)*((t90/tdecay)**2-9.))**2)
 
 
 class DurationSampler(ps.AuxiliarySampler):
