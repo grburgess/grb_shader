@@ -26,10 +26,11 @@ class RestoredUniverse(object):
     def __init__(
         self,
         path_survey_file: str,
+        survey_base_file_name: str = 'survey_1234',
         pop_base_file_name: str = 'pop_1234',
         path_pops_files: str = None,
     ):
-        self._survey_file = Path(path_survey_file)
+        self._survey_file = Path(path_survey_file)/f"{survey_base_file_name}.h5"
         self._survey_path = self._survey_file.parent
 
         if self._survey_file.exists():
@@ -207,7 +208,6 @@ class RestoredUniverse(object):
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_xlabel(r'E$_\mathrm{p,burst}$ [keV]')
-        ax.set_ylabel(r'Scaled n$_\mathrm{GRBs}$')
 
     def hist_luminosity(
         self,
