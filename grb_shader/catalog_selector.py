@@ -34,8 +34,7 @@ class CatalogSelector(SpatialSelection):
             zip(self._spatial_distribution.ra, self._spatial_distribution.dec)
         ):
 
-            flag, galaxy = self._catalog.intercepts_galaxy_numba(ra, dec)
-            #flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
+            flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
 
             if flag:
 
