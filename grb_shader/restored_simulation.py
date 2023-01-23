@@ -57,11 +57,15 @@ class RestoredUniverse(object):
         self._n_sim_grbs = self._pop.n_objects
         self._n_detected_grbs = self._pop.n_detections
 
-
     @property
     def n_sim_grbs(self):
         # total number of GRBs in the population (from integrated spatial distribution)
         return self._n_sim_grbs
+
+    @property
+    def n_detected_grbs(self):
+        # total number of GRBs in the population (from integrated spatial distribution)
+        return self._n_detected_grbs
 
     @property
     def fractions_det(self):
@@ -170,10 +174,12 @@ class RestoredUniverse(object):
             #transform to observer frame
             ep = self.pop.ep/(1+self.pop.distances)
             ep_det = self.pop.ep[self.mask_det]/(1+self.pop.distances[self.mask_det])
+            ax.set_xlabel(r'E$_\mathrm{p,obs}$ [keV]')
         else:
             #in burst frame
             ep = self.pop.ep
             ep_det = self.pop.ep[self.mask_det]
+            ax.set_xlabel(r'E$_\mathrm{p,burst}$ [keV]')
         
 
         bins2 = np.geomspace(min(ep),max(ep),n_bins)
@@ -207,7 +213,6 @@ class RestoredUniverse(object):
 
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel(r'E$_\mathrm{p,burst}$ [keV]')
 
     def hist_luminosity(
         self,

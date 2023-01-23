@@ -3,6 +3,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 def logbins_scaled_histogram(quant,intervals=None,n_bins=50,ax=None):
+    #counts are scaled by dividing by length of bin
+    
     if ax is None:
         fig, ax = plt.subplots()
     
@@ -16,6 +18,7 @@ def logbins_scaled_histogram(quant,intervals=None,n_bins=50,ax=None):
     return intervals
 
 def logbins_norm_histogram(quant,intervals=None,n_bins=50,ax=None):
+    #normalized histogram -> integral yields 1
     if ax is None:
         fig, ax = plt.subplots()
     
