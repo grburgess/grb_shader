@@ -17,7 +17,9 @@ class GRBPop(object):
         observed_quantities: List[ps.AuxiliarySampler], 
         catalog_selec: bool = False,
         hard_flux_selec: bool = False,
-        hard_flux_lim: float = 1e-7 #erg cm^-2 s^-1
+        hard_flux_lim: float = 1e-7, #erg cm^-2 s^-1
+        with_unc: bool = False,
+        unc_circular_angle:float=1., #deg
         ):
         """Generate population of GRBs
 
@@ -56,7 +58,11 @@ class GRBPop(object):
 
         if catalog_selec == True:
             # build the catalog selections
-            self._catalog_selector: CatalogSelector = CatalogSelector()
+            self._catalog_selector = CatalogSelector()
+            if with_unc == True:
+                self._catalog_selector.unc_circular_angle = unc_circular_angle
+            
+            
             self._population_gen.add_spatial_selector(self._catalog_selector)
 
         # angle_sampler = AngleSampler()
@@ -113,6 +119,8 @@ class GRBPop(object):
         catalog_selec = inputs["catalog_selec"]
         hard_flux_selec = inputs["hard_flux_selec"]
         hard_flux_lim = inputs["hard_flux_lim"]
+        unc_circular_angle = inputs["unc_circular_angle"]
+        with_unc = inputs["with_unc"]
 
 
         #look up in dict which is defined below class if constant or pulse
@@ -146,7 +154,7 @@ class GRBPop(object):
         if ep_profile.quantities[0].is_secondary == False:
              observed_quantities.extend(ep_profile.quantities)
 
-        return cls(base_gen, observed_quantities, catalog_selec, hard_flux_selec, hard_flux_lim)
+        return cls(base_gen, observed_quantities, catalog_selec, hard_flux_selec, hard_flux_lim,with_unc,unc_circular_angle)
 
 
 _base_gen_lookup = dict(pareto_sfr=ps.populations.ParetoSFRPopulation,
