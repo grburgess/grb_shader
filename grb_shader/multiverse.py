@@ -71,7 +71,10 @@ class GodMultiverse(object):
         seed: int = 1234,
         catalog_selec: bool = False,
         hard_flux_selec: bool = False,
-        hard_flux_lim: float = 1e-7 #erg cm^-2 s^-1
+        hard_flux_lim: float = 1e-7, #erg cm^-2 s^-1
+        with_unc: bool = False,
+        unc_circular_angle:float=1., #deg
+        n_samp:int=100
         ):
 
         """Generate populations of GRBs
@@ -118,6 +121,9 @@ class GodMultiverse(object):
         setup["catalog_selec"] = catalog_selec
         setup["hard_flux_selec"] = hard_flux_selec
         setup["hard_flux_lim"] = hard_flux_lim
+        setup["with_unc"] = with_unc
+        setup["unc_circular_angle"] = unc_circular_angle
+        setup["n_samp"] = n_samp
 
         #function for one simulated population with params set in file p
         def sim_one_population(i,client=None):
@@ -199,6 +205,18 @@ class GodMultiverse(object):
 
         else:
             raise Exception("No populations found. Load populations first (load_pops) or compute them (go_pops)")
+
+    def reload_pops(
+        self,
+        pop_sim_path: str,
+        constant_temporal_profile: bool,
+        pop_base_file_name: str = 'pop'
+        ):
+
+        self._load_pops(pop_sim_path, constant_temporal_profile, pop_base_file_name)
+        
+        self._read_pops()
+
 
     def _go_universes(
         self,
@@ -447,7 +465,10 @@ class GodMultiverse(object):
         seed: int = 1234,
         catalog_selec: bool = False,
         hard_flux_selec: bool = False,
-        hard_flux_lim: float = 1e-7 #erg cm^-2 s^-1
+        hard_flux_lim: float = 1e-7, #erg cm^-2 s^-1
+        with_unc: bool = False,
+        unc_circular_angle:float=1., #deg
+        n_samp:int=100
     ):
         self._go_pops(
             param_file=param_file,
@@ -458,7 +479,10 @@ class GodMultiverse(object):
             seed=seed,
             catalog_selec=catalog_selec,
             hard_flux_selec=hard_flux_selec,
-            hard_flux_lim=hard_flux_lim
+            hard_flux_lim=hard_flux_lim,
+            with_unc=with_unc,
+            unc_circular_angle=unc_circular_angle, #deg
+            n_samp=n_samp
             )
 
     def go_universes(
@@ -504,6 +528,9 @@ class GodMultiverse(object):
         catalog_selec: bool = False,
         hard_flux_selec: bool = False,
         hard_flux_lim: float = 1e-7, #erg cm^-2 s^-1
+        with_unc: bool = False,
+        unc_circular_angle:float=1., #deg
+        n_samp:int=100,
         surveys_path = None,
         surveys_base_file_name: str = 'survey',
         threshold_trigger: float = 4.5,
@@ -520,7 +547,10 @@ class GodMultiverse(object):
             seed=seed,
             catalog_selec=catalog_selec,
             hard_flux_selec=hard_flux_selec,
-            hard_flux_lim=hard_flux_lim
+            hard_flux_lim=hard_flux_lim,
+            with_unc=with_unc,
+            unc_circular_angle=unc_circular_angle, #deg
+            n_samp=n_samp
             )
         
         #internal parallelization does not work yet -> problem with memory
@@ -597,6 +627,8 @@ class RestoredMultiverse(object):
         self._catalog = LocalVolume.from_lv_catalog()
 
         self._galaxies_were_counted = False
+        
+        self._count_galaxies()
 
     def _count_galaxies(self):
 
@@ -605,18 +637,27 @@ class RestoredMultiverse(object):
 
         for i, pop in enumerate(tqdm(self._populations, desc="counting galaxies")):
             survey = self._surveys[i]
-            self._catalog.read_population(pop)
+            self._catalog.read_population(pop,unc_angle=0.)
 
             #Number of selected galaxies has to be same as number of simulated GRBs
             assert len(self._catalog.selected_galaxies) == survey.n_grbs
 
             for i,galaxy in enumerate(self._catalog.selected_galaxies):
                 if survey.mask_detected_grbs[i]:
-                    self._galaxynames_hit_and_detected.update([galaxy.name])
+                    self._galaxynames_hit_and_detected.update([galaxy[0].name])
 
-                self._galaxynames_hit.update([galaxy.name])
+                self._galaxynames_hit.update([galaxy[0].name])
 
         self._galaxies_were_counted = True
+       
+    @property 
+    def galaxynames_hit(self):
+        return self._galaxynames_hit   
+    
+    @property 
+    def galaxynames_hit_and_detected(self):
+        return self._galaxynames_hit_and_detected
+
 
     @property
     def n_universes(self):
@@ -645,20 +686,24 @@ class RestoredMultiverse(object):
         return self.n_detected_grbs/self.n_sim_grbs
 
     @property
-    def fractions_det(self):
+    def fractions_hit(self):
         #fraction of GRBs that hit galaxies
         return self.n_hit_grbs/self.n_sim_grbs
 
     @property
-    def populations(self) -> List[Path]:
+    def populations(self) -> List[Population]:
         return self._populations
+    
+    @property
+    def surveys(self) -> List[Survey]:
+        return self._surveys
 
     @property
     def survey_files(self) -> List[Path]:
         return self._survey_files
 
     @property
-    def population_files(self) -> List[Population]:
+    def population_files(self) -> List[Path]:
         return self._population_files
 
     def hist_galaxies(self, n=10, width=0.6,exclude=[],ax=None,**kwargs):
@@ -788,7 +833,7 @@ class RestoredMultiverse(object):
 
         return fig
 
-    def _plot_distance_area_n(self,n,distances,areas,uselog=True, cmap='viridis',ax=None):
+    def _plot_distance_area_n(self,n,distances,areas,uselog=True, cmap='viridis',ax=None,**kwargs):
         """
         Plot number of coincidences as function of distance to galaxy 
         and its angular area on the sky
@@ -833,14 +878,14 @@ class RestoredMultiverse(object):
                     cax=cax, label='Number')
 
         for i in range(len(distances)):
-            ax.scatter(x=float(distances[i]), y=float(areas[i]),color=colors[i],s=30,alpha=0.9)
+            ax.scatter(x=float(distances[i]), y=float(areas[i]),color=colors[i],s=30,alpha=0.9,**kwargs)
 
         ax.set_xlabel('Distance [Mpc]')
         ax.set_ylabel(r'Angular Area [rad$^2$]')
 
         return fig
 
-    def plot_distance_area_n(self,uselog=True, cmap='viridis',ax=None):
+    def plot_distance_area_n(self,uselog=True, cmap='viridis',ax=None,**kwargs):
 
         hit_gal_names = list(self._galaxynames_hit.keys())
 
@@ -853,7 +898,7 @@ class RestoredMultiverse(object):
             hit_gal_dist[i] = self._catalog.galaxies[name].distance
             hit_gal_area[i] = self._catalog.galaxies[name].area
 
-        fig = self._plot_distance_area_n(hit_gal_n,hit_gal_dist,hit_gal_area,uselog=uselog, cmap=cmap,ax=ax)
+        fig = self._plot_distance_area_n(hit_gal_n,hit_gal_dist,hit_gal_area,uselog=uselog, cmap=cmap,ax=ax,**kwargs)
 
         return fig 
 
