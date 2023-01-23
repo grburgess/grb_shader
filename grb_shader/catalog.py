@@ -39,12 +39,12 @@ class Galaxy(object):
         #minor angular diameter
         self.b = self.a * self.ratio  # deg
 
-        self.area = np.pi * np.deg2rad(self.a) * np.deg2rad(self.b)  # rad2
+        self.area = np.pi/4 * np.deg2rad(self.a) * np.deg2rad(self.b)  # rad2
         
         #Compute Cartesian unit vector pointing in galaxy center
         self.vec_gcen = self.center.cartesian.xyz.to_value()
 
-    def contains_point(self, ra: float, dec: float) -> bool:
+    def contains_point(self, ra: float, dec: float,grb_circ_unc=0.) -> bool:
         """
         does this galaxy contain this point?
 
@@ -53,16 +53,16 @@ class Galaxy(object):
         :param ra: right ascension of GRB
         :param dec: declination of GRB
         """
-        x_center, y_center, z_center = self.vec_gcen
         
-        sk_coord_grb = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
-        x,y,z = sk_coord_grb.cartesian.xyz.to_value()
-        
-        return _contains_point(x, y, z, 
-                               self.diameter, 
-                               x_center, y_center, z_center, 
-                               self.angle, 
-                               self.ratio)
+        return _contains_point(ra,
+                           dec,
+                           self.diameter,
+                           self.ra,
+                           self.dec,
+                           self.angle,
+                           self.ratio,
+                           grb_circ_unc
+                           )
 
 
 _exclude = ["LMC", "SMC", ]
@@ -107,27 +107,29 @@ class LocalVolume(object):
 
         return cls(output)
 
-    def read_population(self, population: Population,without_unc=True,unc_angle=1,n_samp=100) -> None:
+    def read_population(self, population: Population,unc_angle=None) -> None:
 
         self._population: Population = population
         self.prepare_for_popynth()
         
         self._selection = np.zeros(self._population.n_detections, dtype=bool)
+        self._n_hit_galaxies = np.zeros(self._population.n_detections, dtype=int)
         self._selected_galaxies: List[Galaxy] = []
+        
+        if unc_angle is None:
+            unc_angle = self._population.pop_synth['spatial selection']['SpatialSelection']['unc_circular_angle']
+            
         for i, (ra, dec), in enumerate(
             zip(self._population.ra[self._population.selection],
                 self._population.dec[self._population.selection])
         ):
-            if without_unc:
-                flag, galaxy = self.intercepts_galaxy(ra, dec)
-            else:
-                flag, galaxy = self.intercepts_galaxy_with_grb_uncertainty(ra, dec,unc_angle,n_samp)
-            #flag2, galaxy2 = self.intercepts_galaxy_old(ra, dec)
+            flag, galaxy = self.intercepts_galaxy_all(ra, dec,unc_angle)
 
             if flag:
                 #print('New:', i, galaxy.name,'Gal a,b:',galaxy.a,galaxy.b)
                 self._selected_galaxies.append(galaxy)
                 self._selection[i] = True
+                self._n_hit_galaxies[i] = len(galaxy)
 
             #if flag2:
             #    print('Old:', i, galaxy2.name)
@@ -138,11 +140,17 @@ class LocalVolume(object):
     
     @property
     def selection(self):
+        #True at indices of GRBs that intersect with at least one GRB
         return self._selection
 
     @property
     def selected_galaxies(self):
         return self._selected_galaxies
+    
+    @property
+    def n_hit_galaxies(self):
+        #how many galaxies were hit by one GRB
+        return self._n_hit_galaxies
 
     def sample_angles(self, seed=1234) -> None:
         """
@@ -212,99 +220,62 @@ class LocalVolume(object):
             self._ra[i] = galaxy.center.ra.deg
             self._dec[i] = galaxy.center.dec.deg
 
-            self._vec = galaxy.center.cartesian.xyz.to_value()
-            self._x[i] = self._vec[0]
-            self._y[i] = self._vec[1]
-            self._z[i] = self._vec[2]
-
             self._ratio[i] = galaxy.ratio
-    
+
     def intercepts_galaxy(
-        self, ra: float, dec: float
-    ) -> Tuple[bool, Union[Galaxy, None]]:
-        """
-        Test if the sky point intecepts a galaxy in the local volume
-        and if so return that galaxy
-        """
-        
-        sk_coord_grb = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
-        vec_GRB = sk_coord_grb.cartesian.xyz.to_value()
-        vec_GRB /= np.linalg.norm(vec_GRB)
-
-        flag, idx = _intercepts_galaxy(vec_GRB[0],
-                                       vec_GRB[1],
-                                       vec_GRB[2],
-                                       self._radii,
-                                       self._x,
-                                       self._y,
-                                       self._z,
-                                       self._angles,
-                                       self._ratio,
-                                       self.n_galaxies
-                                       )
-
-        if idx > 0:
-            out = list(self.galaxies.values())[idx]
-
-        else:
-
-            out = None
-
-        return flag, out
-    
-    def intercepts_galaxy_with_grb_uncertainty(
-        self, ra: float, dec: float,angle:float=1,n:int=100
-    ) -> Tuple[bool, Union[Galaxy, None]]:
-        """
-        Test if the sky point intecepts a galaxy in the local volume
-        and if so return that galaxy
-        """
-        test_ra,test_dec = sample_err_circ(ra,dec,angle,n)
-        
-        sk_coord_grb = SkyCoord(ra=test_ra*u.degree, dec=test_dec*u.degree, frame='icrs')
-
-        flag, idx = _intercepts_galaxy_unc(
-            sk_coord_grb.cartesian.x,
-            sk_coord_grb.cartesian.y,
-            sk_coord_grb.cartesian.z,
-            self._radii,
-            self._x,
-            self._y,
-            self._z,
-            self._angles,
-            self._ratio,
-            self.n_galaxies,
-            n)
-
-        if idx > 0:
-            out = list(self.galaxies.values())[idx]
-
-        else:
-
-            out = None
-
-        return flag, out
-
-    def intercepts_galaxy_old(
-        self, ra: float, dec: float
+        self, ra: float, dec: float, grb_circ_unc:float = 0.
     ) -> Tuple[bool, Union[Galaxy, None]]:
         """
         Test if the sky point intecepts a galaxy in the local volume
         and if so return that galaxy
         """
 
-        flag, idx = _intercepts_galaxy_old(ra,
+        flag, idx = _intercepts_galaxy(ra,
                                        dec,
                                        self._radii,
                                        self._ra,
                                        self._dec,
                                        self._angles,
                                        self._ratio,
-                                       self.n_galaxies
+                                       self.n_galaxies,
+                                       grb_circ_unc
                                        )
 
         if idx > 0:
+            #print('Flag intercepts_galaxy',flag)
             out = list(self.galaxies.values())[idx]
+
+        else:
+
+            out = None
+
+        return flag, out
+    
+    def intercepts_galaxy_all(
+        self, ra: float, dec: float, grb_circ_unc:float = 0.
+    ) -> Tuple[bool, Union[Galaxy, None]]:
+        """
+        Test if the sky point intecepts a galaxy in the local volume
+        and if so return that galaxy
+        
+        Find multiple galaxies that can be hit and return list
+        """
+
+        flag, idx = _intercepts_galaxy_all(ra,
+                                       dec,
+                                       self._radii,
+                                       self._ra,
+                                       self._dec,
+                                       self._angles,
+                                       self._ratio,
+                                       self.n_galaxies,
+                                       grb_circ_unc
+                                       )
+
+        if len(idx) > 0:
+            out = []
+            for i in range(len(idx)):
+                out += [list(self.galaxies.values())[idx[i]]]
 
         else:
 
@@ -467,7 +438,7 @@ class LocalVolume(object):
 
         return #r_value
 
-    def show_selected_galaxies(self,projection = 'astro degrees mollweide',radius=10.0,center=None,ax=None,grb_color="k"):
+    def show_selected_galaxies(self, projection = 'astro degrees mollweide',radius=10.0,center=None,ax=None,grb_color="k"):
 
         if self._population is None:
 
@@ -517,7 +488,7 @@ class LocalVolume(object):
         selected_ra = self._population.ra[self._selection]
         selected_dec = self._population.dec[self._selection]
 
-        names = np.unique([galaxy.name for galaxy in self._selected_galaxies])
+        names = np.unique([galaxy[0].name for galaxy in self._selected_galaxies])
 
         #colors = plt.cm.Set1(list(range(len(names))))
 
@@ -532,20 +503,21 @@ class LocalVolume(object):
 
         ):
             
-            if galaxy.name not in _plotted_galaxies:
+            if galaxy[0].name not in _plotted_galaxies:
 
-                a = galaxy.diameter * (1 / 60)
-                b = a * galaxy.ratio
+                a = galaxy[0].diameter * (1 / 60)
+                b = a * galaxy[0].ratio
 
                 ellipse = Ellipse(
-                    (galaxy.center.ra.deg, galaxy.center.dec.deg),
+                    (galaxy[0].center.ra.deg, galaxy[0].center.dec.deg),
                     a,
                     b,
-                    angle=galaxy.angle,
+                    angle=galaxy[0].angle,
                     alpha=0.5,
                     color=f'C0{i}',
-                    label=galaxy.name,
-                    transform=ax.get_transform("icrs")
+                    label=galaxy[0].name,
+                    transform=ax.get_transform("icrs"),
+                    zorder=3.
 
                 )
                 
@@ -554,7 +526,7 @@ class LocalVolume(object):
 
                 i += 1
 
-                _plotted_galaxies.append(galaxy.name)
+                _plotted_galaxies.append(galaxy[0].name)
 
             ax.scatter(
                 ra,
@@ -563,16 +535,20 @@ class LocalVolume(object):
                 color=grb_color,
                 edgecolor=grb_color,
                 s=2,
+                zorder=3.
             )
         ax.grid()
         #ax.legend()
 
         return fig, ax
     
-    def show_all_galaxies_area(self, frame="icrs",cmap='viridis',uselog=True):
+    def show_all_galaxies_area(self, ax=None,frame="icrs",cmap='viridis',uselog=True):
         # scatter plot of all galaxies, coloring by area
-        fig, ax =plt.subplots(figsize=(7,5))
-        ax = plt.subplot(111,projection="astro degrees mollweide")
+        if ax is None:
+            fig, ax =plt.subplots(figsize=(7,5))
+            ax = plt.subplot(111,projection="astro degrees mollweide")
+        else:
+            fig = ax.get_figure()
         
         _, colors = array_to_cmap(self.areas, cmap=cmap, use_log=uselog)
         
@@ -598,11 +574,13 @@ class LocalVolume(object):
             i+=1
         return fig, ax
 
-    def show_all_galaxies(self, frame="icrs"):
-
-        fig, ax = plt.subplots(
-            subplot_kw={"projection": "astro degrees mollweide"})
-        fig.set_size_inches((7, 5))
+    def show_all_galaxies(self, ax=None, color='C00',frame="icrs",scatter=True,s=1):
+        if ax is None:
+            fig, ax = plt.subplots(
+                subplot_kw={"projection": "astro degrees mollweide"})
+            fig.set_size_inches((7, 5))
+        else:
+            fig = ax.get_figure()
 
         i = 0
         for _, galaxy in self.galaxies.items():
@@ -615,23 +593,25 @@ class LocalVolume(object):
                 a,
                 b,
                 galaxy.angle,
-                alpha=0.9,
+                color=color,
+                alpha=0.6,
                 label=galaxy.name,
+                zorder=3
             )
             e = ax.add_patch(ellipse)
             e.set_transform(ax.get_transform(frame))
             
             i+=1
             
-
-            #ax.scatter(
-            #    galaxy.center.ra.deg,
-            #    galaxy.center.dec.deg,
-            #    transform=ax.get_transform("icrs"),
-            #    color="k",
-            #    edgecolor="k",
-            #    s=5,
-            #)
+            if scatter:
+                ax.scatter(
+                    galaxy.center.ra.deg,
+                    galaxy.center.dec.deg,
+                    transform=ax.get_transform("icrs"),
+                    color=color,
+                    edgecolor=color,
+                    s=s,
+                )
         return fig, ax
 
 
@@ -657,232 +637,56 @@ def parse_skycoord(x: str, distance: float) -> SkyCoord:
 
     return sk
 
-@nb.njit(fastmath=False)
-def _calc_cross(vec_1,vec_2):
-    """Cross product of 2 times 3 dimensinal vectors
-    optimized performance using numba
-    """
-    res=np.empty((3,1),dtype=vec_1.dtype)
-    for i in nb.prange(vec_1.shape[0]):
-        for j in nb.prange(vec_2.shape[0]):
-            res[0]=vec_1[1] * vec_2[2] - vec_1[2] * vec_2[1]
-            res[1]=vec_1[2] * vec_2[0] - vec_1[0] * vec_2[2]
-            res[2]=vec_1[0] * vec_2[1] - vec_1[1] * vec_2[0]
-    
-    return res
-
-@nb.njit(fastmath=False)
-def _rotate_to_from_numba(v1, v2):
-    """
-    Determine rotation axis and angle that is needed to rotate
-    vector v2 to vector v1
-    
-    Parameters
-    ----------
-    v1: the vector (array) to rotate to
-    v2: the vector (array) to rotate from
-    tol: tolerance below which vectors are assumed to be either parallel or
-         anti-parallel
-    
-    Returns
-    -------
-    theta: needed rotation angle (rad)
-    crossproduct: normalized vector corresponding to rotation axis
-    """
-    tol = 1e-12
-    #normalise vectors
-    v1 /= np.sqrt(np.dot(v1, v1))
-    v2 /= np.sqrt(np.dot(v2, v2))
-
-    #check if vectors are parallel or antiparallel
-    dot_product = np.sum(v1*v2)
-
-    if np.abs(dot_product-1)<tol:
-        #v1 and v2 are parallel -> no rotation needed (theta = 0)
-        theta = 0
-        crossproduct = np.array([0.,0.,1.],dtype='float64').flatten()
-
-
-    elif np.abs(dot_product+1)<tol:
-        #v1 and v2 are antiparallel -> rotate by 180 degrees
-        #for construction of rotation axis, any second vector can be chosen,
-        #so, use x-axis as a helper vector
-        crossproduct = _calc_cross(v2, np.array([1.,0.,0.])).flatten()
-        crossproduct /= np.sqrt(np.dot(crossproduct, crossproduct))
-
-    else:
-        #compute unit rotation vector from cross product
-        crossproduct = _calc_cross(v2, v1).flatten()
-        crossproduct /= np.sqrt(np.dot(crossproduct, crossproduct))
-        #compute rotation angle from dot product
-        theta = np.arccos(np.sum(v1 * v2))
-        
-    return theta,crossproduct
-
-@nb.njit(fastmath=False)
-def _rotation_matrix(axis, theta):
-    """
-    Determine rotation matrix associated with counterclockwise rotation about
-    the given axis by theta (rad).
-    """
-    axis = np.asarray(axis)
-    axis = axis / np.sqrt(np.dot(axis, axis))
-    a = np.cos(theta / 2.0)
-    b, c, d = -axis * np.sin(theta / 2.0)
-    aa, bb, cc, dd = a * a, b * b, c * c, d * d
-    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
-    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
-                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
-                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-
-@nb.njit(fastmath=False)
-def _intercepts_galaxy(x, y, z, radii, x_center, y_center, z_center, angle, ratio, N):
-
-    for n in range(N):
-
-        if _contains_point(x,
-                           y,
-                           z,
-                           radii[n],
-                           x_center[n],
-                           y_center[n],
-                           z_center[n],
-                           angle[n],
-                           ratio[n]
-                           ):
-
-            return True, n
-
-    return False, -1
-
-@nb.njit(fastmath=False)
-def _contains_point(x, y, z, diameter, x_center, y_center, z_center, angle, ratio) -> bool:
-    """
-    does this galaxy contain this point?
-
-    Assumes galaxy is an ellipse with object's properties.
-
-    :param ra: right ascension of GRB
-    :param dec: declination of GRB
-    """
-    # assume diameter is in degree
-    a = diameter
-
-    b = a * ratio  # deg
-
-    # Cartesian unit vector pointing in GRB direction
-    vec_GRB = np.array([x, y, z])
-
-    vec_gcen = np.array([x_center, y_center, z_center])
-    vec_gcen /= np.sqrt(np.dot(vec_gcen, vec_gcen))
-    
-    if np.rad2deg(np.arccos(np.dot(vec_GRB,vec_gcen))) < b/2:
-        #print(np.rad2deg(np.arccos(np.dot(vec_GRB,vec_gcen))), ' < b/2 = ', b/2.)
-        return True
-    
-    elif np.rad2deg(np.arccos(np.dot(vec_GRB,vec_gcen))) > a/2:
-        #print(np.rad2deg(np.arccos(np.dot(vec_GRB,vec_gcen))), ' > a/2 = ', a/2.)
-        return False
-
-    #rotate GRB vector by angle between z-axis and center of galaxy 
-    theta, axis = _rotate_to_from_numba(np.array([0.,0.,1.]),vec_gcen)
-    vec_GRB_rot = np.dot(_rotation_matrix(axis, theta), vec_GRB)
-
-    #consider elliptic cone with random angle between x-axis and semi-major axis
-    #cos_angle = np.cos(np.pi - angle)
-    #sin_angle = np.sin(np.pi - angle)
-    
-    cos_angle = np.cos(angle)
-    sin_angle = np.sin(angle)
-
-    #rotate x and y coordinates by angle
-    x_t = vec_GRB_rot[0] * cos_angle - vec_GRB_rot[1] * sin_angle
-    y_t = vec_GRB_rot[0] * sin_angle + vec_GRB_rot[1] * cos_angle
-
-    #define tangent of semi-major angular distance and semi-minor angular distance
-    tan_alpha = np.tan(np.deg2rad(a/2.))
-    tan_beta = np.tan(np.deg2rad(b/2.))
-
-    # Get normalised distance of point to center
-    r_norm = (x_t / tan_alpha) ** 2 + (y_t / tan_beta) ** 2
-
-    #test if GRB lies within cone
-    if np.sqrt(r_norm) < vec_GRB_rot[2]:
-        
-        #print(np.sqrt(r_norm), ' < ', vec_GRB_rot[2])
-
-        return True
-
-    else:
-
-        return False
-"""
-def sample_err_circ(ra,dec,angle=1,n=100):
-    
-    r = np.sqrt(np.random.uniform(0,angle**2,size=n))
-    ang = np.pi * np.random.uniform(0,2,size=n)
-    
-    delta_ra = r*np.cos(ang)
-    ra_new = (ra+delta_ra)%360
-    
-    delta_dec = r*np.sin(ang)
-    dec_new = (dec+delta_dec+90)%180-90
-    
-    test_ra = np.append(ra,ra_new)
-    test_dec = np.append(dec,dec_new)
-    
-    return(test_ra,test_dec)
-
-@nb.njit(fastmath=False)
-def _intercepts_galaxy_unc(x,y,z, radii, x_center, y_center, z_center, angle, ratio, N,n_samp):
-
-    for n in range(N):
-        
-        for i in range(n_samp):
-
-            if _contains_point(x[i],
-                               y[i],
-                               z[i],
-                            radii[n],
-                            x_center[n],
-                            y_center[n],
-                            z_center[n],
-                            angle[n],
-                            ratio[n]
-                            ):
-
-                return True, n
-
-    return False, -1
-"""
-
 
 @nb.jit(fastmath=False)
-def _intercepts_galaxy_old(ra, dec, radii, ra_center, dec_center, angle, ratio, N):
+def _intercepts_galaxy(ra, dec, radii, ra_center, dec_center, angle, ratio, N,grb_circ_unc):
 
     for n in range(N):
 
-        if _contains_point_old(ra,
+        if _contains_point(ra,
                            dec,
                            radii[n],
                            ra_center[n],
                            dec_center[n],
                            angle[n],
-                           ratio[n]
+                           ratio[n],
+                           grb_circ_unc
                            ):
+            #print('coinc')
 
             return True, n
 
     return False, -1
 
+@nb.jit(fastmath=False)
+def _intercepts_galaxy_all(ra, dec, radii, ra_center, dec_center, angle, ratio, N,grb_circ_unc):
+    
+    list_gals = []
+    flag = False
+    for n in range(N):
+
+        if _contains_point(ra,
+                           dec,
+                           radii[n],
+                           ra_center[n],
+                           dec_center[n],
+                           angle[n],
+                           ratio[n],
+                           grb_circ_unc
+                           ):
+            flag = True
+            list_gals.append(n)
+            
+    return flag,list_gals
+
 
 @nb.jit(fastmath=False)
-def _contains_point_old(ra, dec, diameter, ra_center, dec_center, angle, ratio,error=0.):
+def _contains_point(ra, dec, diameter, ra_center, dec_center, angle, ratio,error=0.):
 
     # assume diameter is in degree
     a = diameter/2
 
-    b = a * ratio/2  # deg
+    b = a * ratio  # deg
 
     cos_angle = np.cos(np.pi - angle)
     sin_angle = np.sin(np.pi - angle)
@@ -911,65 +715,92 @@ def _contains_point_old(ra, dec, diameter, ra_center, dec_center, angle, ratio,e
         e = np.sqrt(a**2-b**2)
         
         if error > np.sqrt(x_t**2+y_t**2):
+            #print(error,'>', np.sqrt(x_t**2+y_t**2))
             #error is larger than distance between center
             #of galaxy and GRB 
             return True
         
-        else: 
-            length = np.sqrt(x_t^2 + y_t^2) - error
-            unit_vector_x = 1/np.sqrt(x_t^2 + y_t^2) *x_t
-            unit_vector_y = 1/np.sqrt(x_t^2 + y_t^2) *y_t
-            
-            r_norm_2 = (length * unit_vector_x / a) **2 + (length * unit_vector_y / b)**2
-        
-            if r_norm_2 <= 1:
+        if error <= np.sqrt(x_t**2+y_t**2):
             #test whether point P1 lies within ellipse
             #P1: intersection of circle edge with line
             #connecting center of ellipse and circle
+            #print('Test1')
+            length = np.sqrt(x_t**2 + y_t**2) - error
+            unit_vector_x = x_t/np.sqrt(x_t**2 + y_t**2)
+            unit_vector_y = y_t/np.sqrt(x_t**2 + y_t**2)
+            
+            r_norm_p1 = (length * unit_vector_x / a) **2 + (length * unit_vector_y / b)**2
+            #print(r_norm_2)
+        
+            if r_norm_p1 <= 1:
+                #print(r_norm_2,'<',1)
                        
                 return True
         
         f1_x = -e
         f1_y = 0
         
-        dist = np.sqrt((x_t-f1_x)**2+ (y_t-f1_y)**2)
+        dist_f1_grb_center = np.sqrt((x_t-f1_x)**2+ (y_t-f1_y)**2)
         
-        if error>dist:
+        if error > dist_f1_grb_center:
+            #print(error, '>', dist_f1_grb_center)
             return True
-        else:
-            length = dist - error
-            unit_vector_x = (x_t-f1_x)/dist
-            unit_vector_y = (y_t-f1_y)/dist
-            
-            r_norm = (length * unit_vector_x / a) **2 + (length * unit_vector_y / b)**2
         
-            if r_norm <= 1:
+        if error < dist_f1_grb_center:
             #test whether point P2 lies within ellipse
             #P2: intersection of circle edge with line
             #connecting left focus point of ellipse and circle center
-                       
+            
+            #print('Test2')
+            
+            length_f1_p2 = dist_f1_grb_center - error
+            unit_vector_f1_p2_x = (x_t-f1_x)/dist_f1_grb_center
+            unit_vector_f1_p2_y = (y_t-f1_y)/dist_f1_grb_center
+
+            x_p2 = length_f1_p2 * unit_vector_f1_p2_x + f1_x
+            y_p2 = length_f1_p2 * unit_vector_f1_p2_y + f1_y
+            
+            r_norm_p2 = (x_p2 / a) **2 + (y_p2 / b)**2
+        
+            if r_norm_p2 <= 1:
+                #print(r_norm_p2,'<',1)                       
                 return True
             
         f2_x = e
         f2_y = 0
         
-        dist = np.sqrt((x_t-f2_x)**2+ (y_t-f2_y)**2)
+        dist_f2_grb_center = np.sqrt((x_t-f2_x)**2+ (y_t-f2_y)**2)
         
-        if error>dist:
-            return True
-        else:
-            length = dist - error
-            unit_vector_x = (x_t-f2_x)/dist
-            unit_vector_y = (y_t-f2_y)/dist
+        if error > dist_f2_grb_center:
+            #print('coinc')
             
-            r_norm = (length * unit_vector_x / a) **2 + (length * unit_vector_y / b)**2
+            return True
         
-            if r_norm <= 1:
+        if error < dist_f2_grb_center:
             #test whether point P3 lies within ellipse
             #P3: intersection of circle edge with line
             #connecting right focus point of ellipse and circle center
+            
+            #print('Test3')
+            
+            length_f2_p3 = dist_f2_grb_center - error
+            unit_vector_f2_p3_x = (x_t-f2_x)/dist_f2_grb_center
+            unit_vector_f2_p3_y = (y_t-f2_y)/dist_f2_grb_center
+
+            x_p3 = length_f2_p3 * unit_vector_f2_p3_x + f2_x
+            y_p3 = length_f2_p3 * unit_vector_f2_p3_y + f2_y
+            
+            r_norm_p3 = (x_p3 / a) **2 + (y_p3 / b)**2
+        
+            if r_norm_p3 <= 1:
+                #print('Test3')
                        
                 return True
+            
+            else:
+                return False
+        else:
+            return False
             
     else:
 

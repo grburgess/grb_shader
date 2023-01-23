@@ -3,11 +3,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Ellipse
 from popsynth.selection_probability import SpatialSelection
-from .catalog import Galaxy, LocalVolume,sample_err_circ
+from .catalog import Galaxy, LocalVolume
 from popsynth.selection_probability import SelectionParameter
 from tqdm.auto import tqdm
 
 class CatalogSelector(SpatialSelection):
+    #choose how large error circle around GRB is
+    unc_circular_angle = SelectionParameter(default=0.,vmin=0, vmax=180) #degrees
+    
     def __init__(self) -> None:
         """
         Select GRBs that lie on sky inside cones of Local Volume galaxies 
@@ -36,7 +39,7 @@ class CatalogSelector(SpatialSelection):
             zip(self._spatial_distribution.ra, self._spatial_distribution.dec)
         ):
 
-            flag, galaxy = self._catalog.intercepts_galaxy(ra, dec)
+            flag, galaxy = self._catalog.intercepts_galaxy(ra, dec, self.unc_circular_angle)
 
             if flag:
 
@@ -112,53 +115,3 @@ class CatalogSelector(SpatialSelection):
         ax.legend()
 
         return fig, ax
-
-class CatalogSelectorWithUncertainty(SpatialSelection):
-    
-    #choose how large error circle around GRB is
-    unc_circular_angle = SelectionParameter(vmin=1e-10, vmax=180) #degrees
-    
-    #
-    n_samp = SelectionParameter()
-    
-    def __init__(self) -> None:
-        """
-        Select GRBs that lie on sky inside cones of Local Volume galaxies 
-        """
-
-        super(CatalogSelectorWithUncertainty, self).__init__(name="catalog_selector_with_uncertainty")
-        
-        self._catalog = LocalVolume.from_lv_catalog()
-        
-        self._catalog.prepare_for_popynth()
-
-        self._selected_galaxies: List[Galaxy] = []
-
-    @property
-    def catalog(self):
-        return self._catalog
-
-    def draw(self, size) -> None:
-
-        self._selection = np.zeros(size, dtype=bool)
-
-        pbar = tqdm(total=size, desc="Scanning catalog")
-
-        for i, (ra, dec), in enumerate(
-            zip(self._spatial_distribution.ra, self._spatial_distribution.dec)
-        ):
-
-            flag, galaxy = self._catalog.intercepts_galaxy_with_grb_uncertainty(ra, dec,self.unc_circular_angle,self.n_samp)
-
-            if flag:
-
-                self._selection[i] = True
-
-                self._selected_galaxies.append(galaxy)
-
-            pbar.update(1)
-
-    @property
-    def selected_galaxies(self) -> List[Galaxy]:
-
-        return self._selected_galaxies
