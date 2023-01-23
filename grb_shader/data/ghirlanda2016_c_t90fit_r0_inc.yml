@@ -4,7 +4,8 @@ generator:
     flavor: bpl_sfr
 
     parameters:
-      r0: 6.72 #yr^-1
+      #r0 increased to reporduce observations
+      r0: 36 #Gpc^-3
       a: 1.
       rise: 2.0
       decay: 2.0
@@ -39,16 +40,10 @@ spectral:
 # (pulse, constant, triangle)
     
 temporal profile:
-  flavor: pulse_log10normal
+  flavor: constant_log10normal
 
   parameters:
-    t90_mu: -0.19 
+    t90_mu: -0.19
     t90_tau: 0.55
-
-    #parameters for temporal evolution Ep(t)=Ep/(1+t/tau)
-    tau_mu: 2.
-    tau_lower: 1.5
-    tau_upper: 2.5
-    tau_tau: 0.25
   
   
