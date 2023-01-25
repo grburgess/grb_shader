@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.1
+      jupytext_version: 1.14.1
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -14,25 +14,35 @@ jupyter:
 ---
 
 ```python
-from grb_shader import LocalVolume, play_god, GRBPop, RestoredSimulation,get_path_of_data_file
+from grb_shader import LocalVolume
 
-import popsynth
-popsynth.update_logging_level("INFO")
-popsynth.silence_progress_bars()
-popsynth.silence_warnings()
+import popsynth as ps
+ps.update_logging_level("INFO")
+ps.silence_progress_bars()
+ps.silence_warnings()
 
-%matplotlib notebook
-```
+import matplotlib.pyplot as plt
+import numpy as np
 
-```python
-import gbmgeometry
+%matplotlib widget
 ```
 
 ```python
 #generate dictionary with names of all local volume galaxies and the object Galaxy with corresponding properties
 lv = LocalVolume.from_lv_catalog()
-import numpy as np
+dir_sim = "/data/eschoe/grb_shader/sims/220902/noselec_const_no_trunc/"
+pop = ps.Population.from_file(dir_sim + 'pop_1234.h5')
 #lv.display()
+```
+
+```python
+lv.read_population(pop)
+lv.selected_galaxies
+#lv.show_selected_galaxies()
+```
+
+```python
+lv.show_selected_galaxies()
 ```
 
 # Case a
@@ -80,7 +90,7 @@ lv.show_selected_galaxies()
 # Case c
 
 ```python
-sim_path_c = "/data/eschoe/grb_shader/sims/ghirlanda_c_triangle/pop"
+sim_path_c = "/data/eschoe/grb_shader/sims/ghirlanda_t90fit_hardfluxselec_wospatialselec/3/pop"
 r_c = RestoredSimulation(sim_path_c)
 ```
 
@@ -88,7 +98,7 @@ r_c = RestoredSimulation(sim_path_c)
 #histogram which galaxy was hit by a SGRB how many times
 exclude_list = []
 #exclude=["SagdSph", "MESSIER031"]
-r_c.hist_galaxies(20, exclude=[])
+r_c.hist_galaxies(20, exclude=[]);
 ```
 
 ```python
