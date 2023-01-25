@@ -145,4 +145,4 @@ dask-worker-space/
 .vscode/
 
 #threeML fits
-fit*
+chains/
