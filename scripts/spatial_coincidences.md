@@ -229,6 +229,11 @@ pop_files = [f'pop_{1234+10*i}' for i in range(30)]
 ```
 
 ```python
+area = np.sum(lv.areas)
+print(area/(4*np.pi))
+```
+
+```python
 u1 = RestoredUniverse(sim_path+str(unc[0]),pop_base_file_name=pop_files[0])
 ```
 
@@ -236,6 +241,8 @@ u1 = RestoredUniverse(sim_path+str(unc[0]),pop_base_file_name=pop_files[0])
 #fig,ax = plt.subplots()
 fractions_det = np.zeros(shape=(len(unc),len(pop_files)))
 n_det = np.zeros(shape=(len(unc),len(pop_files)))
+N_tot = np.zeros(shape=(len(unc),len(pop_files)))
+
 for j in range(len(pop_files)):
     for i in range(len(unc)):
         u1 = RestoredUniverse(sim_path+str(unc[i]),pop_base_file_name=pop_files[j])
@@ -243,9 +250,14 @@ for j in range(len(pop_files)):
         n=len(u1.pop.selection[u1.pop.selection == True])
         fractions_det[i][j] = n/N
         n_det[i][j] = n
+        N_tot[i][j] = N
 
 
 #ax.scatter(unc,fractions_det,s=6,alpha=0.5)
+```
+
+```python
+np.average(N_tot)
 ```
 
 ```python
@@ -257,6 +269,7 @@ ax.set_xlabel(r'$\delta_{\mathrm{err}}$ [deg]')
 ax.set_ylabel(r'$n_{\mathrm{coinc}}/N$')
 ax.set_yscale('log')
 ax.set_xscale('log')
+ax.axhline(area/(4*np.pi))
 
 
 plt.savefig('/data/eschoe/grb_shader/figs/frac_coinc_err_xylog')
@@ -264,6 +277,7 @@ plt.savefig('/data/eschoe/grb_shader/figs/frac_coinc_err_xylog')
 
 ```python
 fig,ax = plt.subplots(figsize=(7,4))
+plt.rcParams.update({'font.size': 13})
 ax.grid()
 for i in range(len(pop_files)):
     sc = ax.scatter(unc,n_det[:,i],s=13,alpha=0.3,color='C00',zorder=3)
@@ -273,11 +287,12 @@ ax.set_ylabel(r'$n_{\mathrm{coinc}}$')
 ax.set_yscale('log')
 ax.set_xscale('log')
 
-ax.plot(unc,2.5e2*unc**1.5,color='C01',label=r'$\propto {\delta_{\mathrm{err}}}^{1.5}$')
-ax.plot(unc,2.5e2*unc**2,color='C02',label=r'$\propto {\delta_{\mathrm{err}}}^{2}$')
-ax.plot(unc,2.5e2*unc**1,color='C03',label=r'$\propto {\delta_{\mathrm{err}}}^{1.0}$')
-ax.legend()
-plt.savefig('/data/eschoe/grb_shader/figs/n_coinc_err_xylog_fit.png',dpi=300)
+#ax.plot(unc,area/(4*np.pi)*np.average(N_tot)+2.5e2*unc**1.5,color='C01',label=r'$\propto {\delta_{\mathrm{err}}}^{1.5}$')
+#ax.plot(unc,area/(4*np.pi)*np.average(N_tot)+2.5e2*unc**2,color='C02',label=r'$\propto {\delta_{\mathrm{err}}}^{2}$')
+#ax.plot(unc,2.5e2*unc**1,color='C03',label=r'$\propto {\delta_{\mathrm{err}}}^{1.0}$')
+ax.axhline(area/(4*np.pi)*np.average(N_tot),ls='--',color='C01',label=r'$n_{\mathrm{coinc, \, exp}}$')
+ax.legend(fontsize=11)
+plt.savefig('/data/eschoe/grb_shader/figs/n_coinc_err_xylog_fit.pdf',dpi=300)
 ```
 
 ```python

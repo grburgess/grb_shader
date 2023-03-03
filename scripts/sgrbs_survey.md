@@ -441,17 +441,13 @@ energy = np.geomspace(8,800,500)
 
 gbmgrb2.display_energy_integrated_light_curve(time,ax=ax)
 time = np.geomspace(0.05, 0.5, 30)
-gbmgrb2.display_energy_dependent_light_curve(time, energy, uselog=True,ax=ax2,cmap='viridis', alpha=.8)
+#gbmgrb2.display_energy_dependent_light_curve(time, energy, uselog=True,ax=ax2,cmap='viridis', alpha=.8)
 
 ax2.set_ylim(1e-3,0.6)
-#ax2.set_ylabel(r'Flux [keV/s/cm$^2$]')
-plt.savefig('/data/eschoe/grb_shader/figs/latent_time_dependent_spectrum')
 
-#time = np.linspace(0.02, 0.5,10)
-#fig = gbmgrb2.display_time_dependent_spectrum(time, energy, ax=ax,cmap='Oranges', lw=1, alpha=.5)
-#
-#ax.set_yscale('log')
-#ax.set_xscale('log')
+time = np.linspace(0.02, 0.5,10)
+fig = gbmgrb2.display_time_dependent_spectrum(time, energy, ax=ax2,cmap='viridis', lw=1, alpha=.5)
+#plt.savefig('/data/eschoe/grb_shader/figs/latent_time_dependent_spectrum')
 ```
 
 ## plot detected light curve

@@ -30,7 +30,11 @@ class Galaxy(object):
     diameter: float
     ratio: float
     angle: float = 0
-
+    logSFR = None
+    logSFR_type: str = '='
+    logFUVSFR = None
+    logFUVSFR_type: str = '='
+    
     def __post_init__(self):
 
         # Some useful ellipse properties
@@ -72,6 +76,7 @@ _exclude = ["LMC", "SMC", ]
 @dataclass
 class LocalVolume(object):
     galaxies: Dict[str, Galaxy]
+    galaxies_with_sfr: Dict[str, Galaxy]
     _population: Optional[Population] = None
 
     @classmethod
@@ -80,6 +85,7 @@ class LocalVolume(object):
         Construct a LocalVolume from the LV catalog
         """
         output = OrderedDict()
+        output_sfr = OrderedDict()
 
         table = pd.read_csv(
             get_path_of_data_file("lv_catalog.txt"),
@@ -88,24 +94,38 @@ class LocalVolume(object):
             na_values=-99.99,
             names=["name", "skycoord", "diameter", "ratio", "distance"],
         )
+        
+        table_sfr = pd.read_csv(
+            get_path_of_data_file('lv_catalog_sfr.csv'),
+            index_col=1
+            )
 
         for rrow in table.iterrows():
 
             row = rrow[1]
-
+            
             sk = parse_skycoord(row["skycoord"], row["distance"])
 
             if (not np.isnan(row["diameter"])) and (row["name"] not in _exclude):
-
+                
                 galaxy = Galaxy(name=row["name"],
-                                distance=row["distance"],
-                                center=sk,
-                                diameter=row["diameter"],
-                                ratio=row["ratio"])
-
+                            distance=row["distance"],
+                            center=sk,
+                            diameter=row["diameter"],
+                            ratio=row["ratio"])
+                
                 output[row["name"]] = galaxy
+                
+                if row["name"] in list(table_sfr.index):
+                    galaxy.logSFR = table_sfr['logSFR'][row["name"]]
+                    galaxy.logSFR_type = table_sfr['logSFR_type'][row["name"]]
+                    galaxy.logFUVSFR = table_sfr['logFUVSFR'][row["name"]]
+                    galaxy.logFUVSFR_type = table_sfr['logFUVSFR_type'][row["name"]]
+                    
+                    output_sfr[row["name"]] = galaxy
 
-        return cls(output)
+
+        return cls(output,output_sfr)
 
     def read_population(self, population: Population,unc_angle=None) -> None:
 

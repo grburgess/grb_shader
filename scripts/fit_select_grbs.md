@@ -39,6 +39,7 @@ import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from grb_shader import RestoredMultiverse, LocalVolume
+from grb_shader.selections import *
 from grb_shader.plotting.minor_symlog_locator import MinorSymLogLocator
 from grb_shader.utils.package_data import get_path_of_data_file
 from grb_shader.plotting.plotting_functions import array_to_cmap
@@ -58,10 +59,6 @@ print(f'Number of simulated universes: {restored_sim.n_universes}')
 ```python
 print('Number detected GRBs',int(np.sum(restored_sim._n_detected_grbs)))
 print('Number detected GRBs',int(np.sum(restored_sim.n_detected_grbs)))
-```
-
-```python
-data.keys()
 ```
 
 # Convert detected GRBs to fits format
@@ -168,61 +165,6 @@ data = pd.read_csv(csv_file)
 ## SFR Selection
 
 ```python
-sfr = get_path_of_data_file('lv_catalog_sfr.csv')
-```
-
-```python
-lv = pd.read_csv(sfr,index_col=1)
-gal_names_wsfr = lv.index.tolist()
-```
-
-```python
-def select_gals(galaxies,lim_halpha,lim_uv):
-    selected_gals = []
-    discarded_gals = []
-    #select galaxies with larger SFR than given limit or if no SFR given in LV catalog
-    #discard galaxy if upper limit or value is smaller than chosen threshold
-    for gal in galaxies:
-        #print(gal)
-
-        if gal in gal_names_wsfr:
-
-            #hit_analyzable_gals_wsfr += [gal]
-
-            sfr_halpha = lv['logSFR'][gal]
-            sfr_halpha_type = lv['logSFR_type'][gal]
-            sfr_uv = lv['logFUVSFR'][gal]
-            sfr_uv_type = lv['logFUVSFR_type'][gal]
-
-            if (((not np.isnan(sfr_halpha)) and (sfr_halpha < lim_halpha)) and (sfr_halpha_type != '>')):
-                    #print('Halpha',sfr_halpha,lim_halpha)
-                    discarded_gals += [gal]
-
-            elif (((not np.isnan(sfr_uv)) and (sfr_uv < lim_uv)) and (sfr_uv_type != '>')):
-                    #print('UV',sfr_uv,lim_uv)
-                    discarded_gals += [gal]
-            else:
-                #print('SFR larger than both limits',gal)
-                selected_gals += [gal]
-
-        else:
-            #print('no SFR given',gal)
-            selected_gals += [gal]
-    
-    return selected_gals, discarded_gals
-```
-
-```python
-#Print SFRs of proposed host galaxies for extragalactic MGFs in past
-#names = ['MESSIER081','MESSIER082','MESSIER031','NGC5236','NGC0253']
-#for name in names:
-#    print(name)
-#    print('SFR H alpha',10**(lv['logSFR'][name]))
-#    print('SFR H alpha',10**(lv['logFUVSFR'][name]))
-#    print()
-```
-
-```python
 hit_galaxies = restored_sim._galaxynames_hit
 hit_and_detected_galaxies = restored_sim._galaxynames_hit_and_detected
 #Galaxy names that are hit by GRBs, are detected and analyzable 
@@ -232,16 +174,12 @@ hit_analyzable_gals = np.unique(data['gal'])
 
 ```python
 #define thresholds for sfr as minimum SFRs of given hit galaxies from above
-lim_halpha = lv['logSFR']['MESSIER031']
-lim_uv = lv['logFUVSFR']['MESSIER031']
+lim_halpha = lv.galaxies_with_sfr['MESSIER031'].logSFR
+lim_uv = lv.galaxies_with_sfr['MESSIER031'].logFUVSFR
 
-hit_galaxies_sfr,hit_galaxies_sfr_excl = select_gals(hit_galaxies,lim_halpha,lim_uv)
-hit_and_detected_galaxies_sfr,_ = select_gals(hit_and_detected_galaxies,lim_halpha,lim_uv)
-hit_analyzable_gals_sfr,_ = select_gals(hit_analyzable_gals,lim_halpha,lim_uv)
-```
-
-```python
-len(hit_galaxies_sfr_excl)
+hit_galaxies_sfr,hit_galaxies_sfr_excl = select_gals_sfr(hit_galaxies,lim_halpha,lim_uv)
+hit_and_detected_galaxies_sfr,_ = select_gals_sfr(hit_and_detected_galaxies,lim_halpha,lim_uv)
+hit_analyzable_gals_sfr,_ = select_gals_sfr(hit_analyzable_gals,lim_halpha,lim_uv)
 ```
 
 ```python
@@ -254,10 +192,6 @@ print()
 print('Number hit+detected+analyzable unique galaxies: ',len(hit_analyzable_gals))
 print('With SFR constrain: ',len(hit_analyzable_gals_sfr))
 
-```
-
-```python
-hit_galaxies['MESSIER031']
 ```
 
 ```python
@@ -330,85 +264,178 @@ plt.savefig('/data/eschoe/grb_shader/figs/coincidences_gals_sfr2.png',dpi=300)
 
 ## GBM Trigger Selection
 
-```python
-print(len(restored_sim.n_detected_grbs))
-```
+
+### Only GBM trigger
 
 ```python
+print('WITH SagdSph')
 n_hit_det=len(restored_sim.n_detected_grbs[restored_sim.n_detected_grbs>0])
-print('Number of surveys with at least more than 1 coinciding detected GRB',n_hit_det)
+print('\tNumber of surveys with at least 1 coinciding detected GRB',n_hit_det)
 
-print('Number of years until prob>5%:',5*14/(n_hit_det/10.), ' yr')
+print('\tNumber of years until prob>5%:',5*14/(n_hit_det/10.), ' yr')
 
+################
+print('WITHOUT SagdSph')
+print('\tNumber of surveys with at least 1 coinciding detected GRB',n_hit_det)
 5*14/(n_coinc_det_sfr_woSagdSph/10.)
 ```
 
 ```python
-n_coinc_det_sfr =0
-n_coinc_det_sfr_woSagdSph =0
-n_coinc_det_woSagdSph = 0
-n_coinc_det = 0
+n_coinc_det_sfr_tot =0
+n_coinc_det_sfr_woSagdSph_tot =0
+n_coinc_det_woSagdSph_tot = 0
+n_coinc_det_tot = 0
+n_coinc_woSagdSph_tot = 0
+n_coinc_tot = 0
 
-for i, pop in enumerate(tqdm(restored_sim._populations, desc="counting galaxies")):
-    survey = restored_sim._surveys[i]
+n_coinc_woSagdSph_arr = np.zeros(len(restored_sim._populations))
+
+for j, pop in enumerate(tqdm(restored_sim._populations, desc="counting galaxies")):
+    survey = restored_sim._surveys[j]
     restored_sim._catalog.read_population(pop,unc_angle=0.)
 
     #Number of selected galaxies has to be same as number of simulated GRBs
     assert len(restored_sim._catalog.selected_galaxies) == survey.n_grbs
+    
+    n_coinc_det_sfr =0
+    n_coinc_det_sfr_woSagdSph =0
+    n_coinc_det_woSagdSph = 0
+    n_coinc_det = 0
+    n_coinc_woSagdSph = 0
+    n_coinc = 0
 
     for i,galaxy in enumerate(restored_sim._catalog.selected_galaxies):
+
         if survey.mask_detected_grbs[i]:
+            #print(survey.mask_detected_grbs)
             n_coinc_det+=1
             if galaxy[0].name != 'SagdSph':
                 n_coinc_det_woSagdSph += 1
                 if galaxy[0].name not in hit_galaxies_sfr_excl:
-                    n_coinc_det_woSagdSph += 1
+                    n_coinc_det_sfr_woSagdSph += 1
             elif galaxy[0].name not in hit_galaxies_sfr_excl:
-                n_coinc_det += 1
-                
-                    
-            
-                #print(galaxy[0].name)
-            
-                break
+                n_coinc_det_sfr += 1
+
+
+        if galaxy[0].name != 'SagdSph':
+            n_coinc_woSagdSph += 1
+    
+    n_coinc_woSagdSph_arr[j] = n_coinc_woSagdSph
+    #count number of surveys, not number of events 
+    #-> donot count twice if one survey has two hits   
+    if n_coinc_det > 0:
+        n_coinc_det_tot += 1
+    if n_coinc_det_woSagdSph > 0:
+        n_coinc_det_woSagdSph_tot += 1
+    if n_coinc_det_sfr_woSagdSph > 0:
+        n_coinc_det_sfr_woSagdSph_tot += 1
+    if n_coinc_det_sfr > 0:
+        n_coinc_det_sfr_tot += 1
+    if n_coinc > 0:
+        n_coinc_tot += 1
+    if n_coinc_woSagdSph > 0:
+        n_coinc_woSagdSph_tot += 1
 ```
 
 ```python
-n_hit_det=len(restored_sim.n_detected_grbs[restored_sim.n_detected_grbs>0])
-print('N surveys with det sGRBs, SFR cond: ',n_coinc_det)
-print('Number of years until prob>5%:',5*14/(n_coinc_det/10.), ' yr')
+print('ONLY GBM SELECTION')
+#n_hit_det=len(restored_sim.n_detected_grbs[restored_sim.n_detected_grbs>0])
+#print(n_hit_det)
+print('\tWITH SagdSph')
+print('\t\tN surveys with det sGRBs: ',n_coinc_det_tot)
+print('\t\tNumber of years until prob>5%:',5*14/(n_coinc_det_tot/10.), ' yr')
 print()
-print('N surveys with det sGRBs, SFR cond without SagdSPh: ',n_coinc_det_woSagdSph)
-print('Number of years until prob>5%:',5*14/(n_coinc_det_woSagdSph/10.), ' yr')
+print('\tWITHOUT SagdSph')
+print('\t\tN surveys with det sGRBs: ',n_coinc_det_woSagdSph_tot)
+print('\t\tNumber of years until prob>5%:',5*14/(n_coinc_det_woSagdSph_tot/10.), ' yr')
 ```
 
 ```python
-n_hit_det=len(restored_sim.n_detected_grbs[restored_sim.n_detected_grbs>0])
-print('N surveys with det sGRBs, SFR cond: ',n_coinc_det_sfr)
-print('Number of years until prob>5%:',5*14/(n_coinc_det_sfr/10.), ' yr')
+print('GBM + SFR')
+print('\tWITH SagdSph')
+print('\t\tN surveys with det sGRBs, SFR cond: ',n_coinc_det_sfr_tot)
+print('\t\tNumber of years until prob>5%:',5*14/(n_coinc_det_sfr_tot/10.), ' yr')
 print()
-print('N surveys with det sGRBs, SFR cond without SagdSPh: ',n_coinc_det_sfr_woSagdSph)
-print('Number of years until prob>5%:',5*14/(n_coinc_det_sfr_woSagdSph/10.), ' yr')
+print('\tWITHOUT SagdSph')
+print('\t\tN surveys with det sGRBs, SFR cond without SagdSPh: ',n_coinc_det_sfr_woSagdSph_tot)
+print('\t\tNumber of years until prob>5%:',5*14/(n_coinc_det_sfr_woSagdSph_tot/10.), ' yr')
 ```
 
 ## Eiso
-
-
-### Eiso histogram
+Consider only analyzable GRBs that could be fit with threeML. Use output of above fitting output
 
 ```python
 Eiso_lv = data['Eiso_lv'].to_numpy()
 Eiso_z = data['Eiso_z'].to_numpy()
 ```
 
+### Numbers
+
 ```python
-%matplotlib widget
-fig, ax = plt.subplots(figsize=(7,4)) 
-intervals=logbins_norm_histogram(Eiso_lv.to_numpy(),ax=ax,n_bins=100)
-#print(np.histogram(Eiso_lv.to_numpy(),bins=intervals,density=True))
-ax.set_xscale('log')
-ax.set_yscale('log')
+print('GBM + ANALYZABLE + Eiso selection')
+print('\tWITH SagdSph')
+univ = np.array(data['seed'][Eiso_lv<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+#print(len(univ))
+#print(len(unique_univ))
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph']
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][Eiso_lv[mask]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
+
+```python
+#include SFR selection
+print('GBM + ANALYZABLE + Eiso + SFR selection')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][Eiso_lv[mask]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][Eiso_lv[mask]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+```python
+#combine with duration selection,neglect SagdSph
+print('GBM + ANALYZABLE + Eiso + SFR + T90selection')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2)
+univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+### Eiso histogram
 
 ```python
 fig, ax = plt.subplots(figsize=(7,4)) 
@@ -425,49 +452,6 @@ ax.set_ylabel('Number')
 #ax.set_ylim(1,50)
 ax.legend(loc='upper center')
 plt.savefig('/data/eschoe/grb_shader/figs/selection_eiso_wSagdSph.png',dpi=300)
-```
-
-```python
-_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
-mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-```
-
-```python
-#neglect SagdSph
-univ = np.array(data['seed'][mask][Eiso_lv[mask]<5.3e46])
-unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
-
-```python
-#including SagdSph
-univ = np.array(data['seed'][Eiso_lv<5.3e46])
-unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
-
-```python
-#combine with duration selection,neglect SagdSph
-mask_comb = np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2)
-univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
-unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
-
-```python
-#combine with duration selection,include SagdSph
-mask_comb = np.logical_and(Eiso_lv<5.3e46,0.9*dur_bb<2)
-univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
-unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
 
 ### E_p-E_iso scatter plot with joint GBM and Konus data
@@ -488,16 +472,18 @@ data_gbm
 
 ```python
 fig, ax = plt.subplots(figsize=(7,4))
-ax.scatter(data_gbm['Eiso'],data_gbm['Ep'],s=8,marker='x',c='black',label='GBM data',alpha=0.8,zorder=3)
-ax.scatter(data_konus['Eiso'],data_konus['Ep'],s=8,marker='^',c='black',label='Konus data',alpha=0.8,zorder=3)
+plt.rcParams.update({'font.size': 14})
+ax.scatter(data_gbm['Eiso'],data_gbm['Ep'],s=8,marker='x',c='black',label='GBM + Konus data',alpha=0.8,zorder=3)
+ax.scatter(data_konus['Eiso'],data_konus['Ep'],s=8,marker='x',c='black',label='',alpha=0.8,zorder=3)
 ax.scatter(data['Eiso_lv'],data['Ep_obs_fit'],s=8,label='Simulated, host LV galaxy')
 ax.scatter(data['Eiso_z'],data['Ep_obs_fit']*(1+data['z']),s=8,label='Simulated, host at latent $z$')
 ax.set_xscale('log')
 ax.set_yscale('log')
+ax.axvline(5.3e46,color='C03',ls='--',label='Limit observed MGFs')
 ax.set_xlabel('$E_{iso}$ [erg]')
 ax.set_ylabel('$E_{\mathrm{p}}$ [keV]')
-ax.legend(loc='upper center')
-plt.savefig('/data/eschoe/grb_shader/figs/selection_ep_eiso_scatter.png',dpi=300)
+ax.legend(fontsize=10,loc='upper center')
+plt.savefig('/data/eschoe/grb_shader/figs/selection_ep_eiso_scatter.pdf')#,dpi=300)
 ```
 
 ### Exclude galaxies
@@ -531,17 +517,55 @@ len(Eiso_z.to_numpy()[mask])
 
 ## Duration selection
 
+
+### Numbers
+
 ```python
 dur_bb = data['duration_bb'].to_numpy()
 ```
 
 ```python
-univ = np.array(data['seed'][0.9*dur_bb<2])
+print('GBM + ANALYZABLE + T90 selection')
+print('\tWITH SagdSph')
+univ = np.array(data['seed'][0.9*dur_bb<2.])
 unique_univ = np.unique(univ)
-print('Number of sGRBs with dur<2: ', len(univ))
-print('Number of surveys with at least one sGRB with dur<2: ',len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+#print(len(univ))
+#print(len(unique_univ))
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph']
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][0.9*dur_bb[mask]<2.])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
+
+```python
+#include SFR selection
+print('GBM + ANALYZABLE + T90 + SFR selection')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][0.9*dur_bb[mask]<2.])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][0.9*dur_bb[mask]<2.])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+### Histogram with all galaxies
 
 ```python
 fig, ax = plt.subplots(figsize=(7,4))
@@ -558,47 +582,12 @@ ax.legend()
 plt.savefig('/data/eschoe/grb_shader/figs/selection_t90.png',dpi=300)
 ```
 
-### Exclude galaxies
+### Histogram excluding galaxies
 
 ```python
 _exclude = ['SagdSph'] + hit_galaxies_sfr_excl
-_exclude2 = hit_galaxies_sfr_excl
 mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-mask2 = [(data['gal'].to_numpy()[i] not in _exclude2) for i in range(len(data['gal'].to_numpy()))]
 
-univ = np.array(data['seed'][mask][0.9*dur_bb[mask]<2])
-unique_univ = np.unique(univ)
-univ2 = np.array(data['seed'][mask2][0.9*dur_bb[mask2]<2])
-unique_univ2 = np.unique(univ2)
-print('N sGRBs with SagdSph:',len(univ2))
-print('N surveys with sagdsph:',len(unique_univ2))
-print('Number of years until prob>5%:',5*14/(len(unique_univ2)/10.), ' yr')
-print()
-print('N det sGRBs coinc. with SFR selected galaxies without SagdSph:',len(univ))
-print('Number of surveys with at least 1 sGRB coinc. with SFR selected galaxies:',len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
-
-```python
-_exclude = ['SagdSph'] #+ hit_galaxies_sfr_excl
-_exclude2 = hit_galaxies_sfr_excl
-mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-mask2 = [(data['gal'].to_numpy()[i] not in _exclude2) for i in range(len(data['gal'].to_numpy()))]
-
-univ = np.array(data['seed'][mask][0.9*dur_bb[mask]<2])
-unique_univ = np.unique(univ)
-univ2 = np.array(data['seed'][mask2][0.9*dur_bb[mask2]<2])
-unique_univ2 = np.unique(univ2)
-print('N sGRBs with SagdSph:',len(univ2))
-print('N surveys with sagdsph:',len(unique_univ2))
-print('Number of years until prob>5%:',5*14/(len(unique_univ2)/10.), ' yr')
-print()
-print('N det sGRBs coinc. with SFR selected galaxies without SagdSph:',len(univ))
-print('Number of surveys with at least 1 sGRB coinc. with SFR selected galaxies:',len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
-
-```python
 fig, ax = plt.subplots(figsize=(7,4))
 ax.grid(lw=0.5)
 ax.set_axisbelow(True)
@@ -622,6 +611,8 @@ fluence = np.zeros_like(Eiso_lv)
 for i in range(len(gal_names)):
     fluence[i]= Eiso_lv[i]/(4*np.pi* (lv.galaxies[gal_names[i]].distance*3.086e+24)**2)
 ```
+
+### Histogram
 
 ```python
 from popsynth.utils.cosmology import Cosmology
@@ -648,83 +639,184 @@ ax.legend(loc='upper right')
 plt.savefig('/data/eschoe/grb_shader/figs/selection_fluence.png',dpi=300)
 ```
 
+### Numbers
+
 ```python
+print('GBM + ANALYZABLE + Fluence selection')
+print('\tWITH SagdSph')
+univ = np.array(data['seed'][fluence>1e-6])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+#print(len(univ))
+#print(len(unique_univ))
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph']
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+univ = np.array(data['seed'][mask][fluence[mask]>1e-6])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+```python
+#ALL Selections
+print('ALL: GBM + ANALYZABLE + Fluence + Eiso + SFR + T90 selection')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
 _exclude = ['SagdSph'] + hit_galaxies_sfr_excl
 mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-```
-
-```python
-#only fluence
-mask_comb = fluence>1e-6
-#mask_comb2 = fluence[mask_comb][fluence[mask_comb]>1e-6]
-univ = np.array(data['seed'][mask_comb])
+mask_comb = np.logical_and(np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
 unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
 
 ```python
-_exclude = ['SagdSph']# + hit_galaxies_sfr_excl
+print('GBM + ANALYZABLE + Fluence + T90 selection')
+print('\tWITH SagdSph')
+_exclude = []#hit_galaxies_sfr_excl
 mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-#combine with duration selection,include SagdSph
-mask_comb = np.logical_and(mask,fluence>1e-6)
-#mask_comb2 = fluence[mask_comb][fluence[mask_comb]>1e-6]
+mask_comb = np.logical_and(np.logical_and(mask,0.9*dur_bb<2),fluence>1e-6)
 univ = np.array(data['seed'][mask_comb])
 unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
-```
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 
-```python
-#combine with duration selection,include SagdSph
+print()
+print('\tWITHOUT SagdSph')
 _exclude = ['SagdSph'] #+ hit_galaxies_sfr_excl
 mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-mask_comb = np.logical_and(np.logical_and(np.logical_and(Eiso_lv<5.3e46,mask),0.9*dur_bb<2),fluence>1e-6)
-#mask_comb2 = fluence[mask_comb][fluence[mask_comb]>1e-6]
+mask_comb = np.logical_and(np.logical_and(mask,0.9*dur_bb<2),fluence>1e-6)
 univ = np.array(data['seed'][mask_comb])
 unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
 
 ```python
-univ = np.array(data['gal'][mask_comb])
-unique_univ = np.unique(univ)
-```
-
-```python
-unique_univ
-```
-
-```python
-unique_univ
-```
-
-```python
-_exclude =hit_galaxies_sfr_excl
+print('GBM + ANALYZABLE + Fluence + Eiso selection')
+print('\tWITH SagdSph')
+_exclude = []#hit_galaxies_sfr_excl
 mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
-#combine with duration selection,include SagdSph
-mask_comb = np.logical_and(np.logical_and(np.logical_and(Eiso_lv<5.3e46,mask),0.9*dur_bb<2),fluence>1e-6)
-#mask_comb2 = fluence[mask_comb][fluence[mask_comb]>1e-6]
+mask_comb = np.logical_and(np.logical_and(mask,Eiso_lv<5.3e46),fluence>1e-6)
 univ = np.array(data['seed'][mask_comb])
 unique_univ = np.unique(univ)
-print(len(univ))
-print(len(unique_univ))
-print('Number of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] #+ hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask,Eiso_lv<5.3e46),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
 
 ```python
-len(Eiso_lv)
-```
+print('GBM + ANALYZABLE + Fluence + SFR')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(mask,fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 
-# Histogram galaxies
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(mask,fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
 
 ```python
+print('GBM + ANALYZABLE + Fluence + Eiso + T90 selection')
+print('\tWITH SagdSph')
+_exclude = []#hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb][Eiso_lv[mask_comb]<5.3e46])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] #+ hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
 ```
+
+```python
+print('GBM + ANALYZABLE + Fluence + SFR + Eiso')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, Eiso_lv<5.3e46),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+```python
+print('GBM + ANALYZABLE + Fluence + SFR + Eiso')
+print('\tWITH SagdSph')
+_exclude = hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, 0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+
+print()
+print('\tWITHOUT SagdSph')
+_exclude = ['SagdSph'] + hit_galaxies_sfr_excl
+mask = [(data['gal'].to_numpy()[i] not in _exclude) for i in range(len(data['gal'].to_numpy()))]
+mask_comb = np.logical_and(np.logical_and(mask, 0.9*dur_bb<2),fluence>1e-6)
+univ = np.array(data['seed'][mask_comb])
+unique_univ = np.unique(univ)
+print('\t\tN surveys:',len(unique_univ))
+print('\t\tNumber of years until prob>5%:',5*14/(len(unique_univ)/10.), ' yr')
+```
+
+# Histogram all hit galaxies
 
 ```python
 #plt.clf()
@@ -752,12 +844,30 @@ ax.set_axisbelow(True)
 #restored_sim.hist_n_sim_grbs(ax=ax,alpha=0.5,label='Total')
 restored_sim.hist_n_hit_grbs(ax=ax,alpha=0.8,label='Hit',width=0.7)
 restored_sim.hist_n_det_grbs(ax=ax,alpha=0.6,label='Hit+detected',width=0.7)
+labels, counts = np.unique(n_coinc_woSagdSph_arr, return_counts=True)
+ax.bar(labels,counts,label='Hit, without SagdSph',alpha=0.5)
 ax.set_xlabel('# Spatial Coincidences')
 ax.set_ylabel('# Surveys')
 
 ax.legend()
 plt.show()
-plt.savefig('/data/eschoe/grb_shader/figs/coincidences.png',dpi=300)
+plt.savefig('/data/eschoe/grb_shader/figs/coincidences_woSagdSph.png',dpi=300)
+```
+
+## WITHOUT SagdSph
+
+```python
+fig, ax = plt.subplots()
+ax.set_xlabel('# Spatial Coincidences')
+ax.set_ylabel('# Surveys')
+labels, counts = np.unique(n_coinc_woSagdSph_arr, return_counts=True)
+ax.bar(labels,counts)
+#ax.set_xlim(0.5,None)
+#ax.set_ylim(0,50)
+```
+
+```python
+n_coinc_det_woSagdSph
 ```
 
 ```python
@@ -783,4 +893,8 @@ ax2.set_xscale('log')
 ax2.set_xlabel('Distance [Mpc]')
 ax2.set_ylabel(r'Angular Area [rad$^2$]')
 plt.savefig('/data/eschoe/grb_shader/figs/distance_area_n')
+```
+
+```python
+
 ```
