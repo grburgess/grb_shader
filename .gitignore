@@ -127,4 +127,22 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/examples/*.ipynb
+
+#Jupyter notebooks 
+*.ipynb
+
+# pop synth data
+*.h5
+
+# fit of t90 distribution
+scripts/fit_t90/stan/**
+!scripts/fit_t90/stan/*.stan
+
+# Dask worker space
+dask-worker-space/
+
+#vscode
+.vscode/
+
+#threeML fits
+chains/
